@@ -1,9 +1,18 @@
 #include "neodb/index.h"
 
 namespace neodb {
-    void Index::Put(const std::string& key, Index::ValueType value) {
 
-    }
+const uint64_t Index::kIndexNotFound = 0xffffffffffffffff;
 
-    Index::ValueType Index::Get(const std::string& key) { return 10000ULL; }
+void Index::Put(const std::string& key, Index::ValueType value) {
+  idx_[key] = std::move(value);
+}
+
+Index::ValueType Index::Get(const std::string& key) {
+  auto it = idx_.find(key);
+  if (it != idx_.end()) {
+    return it->second;
+  }
+  return Index::kIndexNotFound;
+}
 }

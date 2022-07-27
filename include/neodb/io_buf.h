@@ -22,11 +22,14 @@ class IOBuf {
     capacity_ = data.size();
   }
 
-  // TODO allocate a new buffer
+  // TODO allocate a new buffer for further use.
   IOBuf(uint32_t capacity) : capacity_(capacity) {}
 
+  // Delete copy constructor, you could only use IOBuf via smart pointers.
+  IOBuf(const IOBuf& buf) = delete;
+
   ~IOBuf() {
-    if (data_.empty() && buf_ != nullptr) {
+    if (IsManagedBuffer()) {
       free(buf_);
     }
   }
@@ -37,7 +40,23 @@ class IOBuf {
 
   uint32_t Capacity() { return capacity_; }
 
+  bool Sealed() { return capacity_ == size_; }
+
+  // Copy append new data to the end of the buffer.
   int Append(char* src, uint32_t length) { return length; }
+
+  std::string Data() {
+    if (IsManagedBuffer()) {
+      return std::string(buf_, size_);
+    }
+    return data_;
+  }
+
+ private:
+  // Do we need to free the buffer on destruction of current IOBuf.
+  bool IsManagedBuffer() {
+    return (buf_ != nullptr && data_.empty() && size_ > 0 && capacity_ > 0);
+  }
 
  private:
   // If buf is not nullptr, means we need to free space.
