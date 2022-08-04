@@ -1,19 +1,21 @@
 #pragma once
 
 namespace neodb {
-    class Status {
-     public:
-      enum Code { kOK = 0, kNotFound, kIOError };
+class Status {
+ public:
+  enum Code { kOK = 0, kNotFound, kIOError };
 
-     public:
-      static Status OK() { return Status(Code::kOK); }
+ public:
+  static Status OK() { return Status(Code::kOK); }
 
-     public:
-      Status(Code code) : code_(code) {}
+  static Status NotFound() { return Status(Code::kNotFound); }
 
-      bool ok() { return code_ == kOK; }
+ public:
+  Status(Code code) : code_(code) {}
 
-     private:
-      Code code_ = Cdde::kOK;
-    };
+  bool ok() { return code_ == kOK; }
+
+ private:
+  Code code_ = Code::kOK;
+};
 }

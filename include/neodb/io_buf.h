@@ -1,37 +1,35 @@
 #pragma once
 
-#include <memory>
 #include <unistd.h>
+#include <cassert>
+#include <cstdio>
+#include <cstring>
+#include <memory>
+#include <string>
 
 namespace neodb {
-// IOBuf manage buffer memory itself.
+
+#define PAGE_SIZE 4096
+
+// IOBuf will always holds the ownership if the underlying data buffer.
+// In contrast, a Slice will only holds references.
 class IOBuf {
  public:
-  static std::unique_ptr<IOBuf> TakeOwnership(char* buf, uint32_t size) {
-    return std::make_unique<IOBuf>(buf, size);
-  }
+  IOBuf() {}
 
- public:
-  // Take the ownership of target buffer, the capacity is set to target size and
-  // not changeable.
-  IOBuf(char* buf, uint32_t size) : buf_(buf), size_(size), capacity_(size) {}
-
-  // Reuse input buffer, take over the ownership (zero copy)
-  IOBuf(std::string data) : data_(std::move(data)) {
-    size_ = data.size();
-    capacity_ = data.size();
-  }
-
-  // TODO allocate a new buffer for further use.
-  IOBuf(uint32_t capacity) : capacity_(capacity) {}
-
-  // Delete copy constructor, you could only use IOBuf via smart pointers.
-  IOBuf(const IOBuf& buf) = delete;
-
-  ~IOBuf() {
-    if (IsManagedBuffer()) {
-      free(buf_);
+  IOBuf(uint32_t capacity) : capacity_(capacity) {
+    assert(capacity % PAGE_SIZE == 0);
+    int ret = posix_memalign((void**)&buf_, PAGE_SIZE, capacity);
+    if (ret != 0) {
+      // TODO
     }
+  }
+
+  ~IOBuf() { free(buf_); }
+
+  void Append(char* src, uint32_t size) {
+    memcpy(buf_ + size_, src, size);
+    size_ += size;
   }
 
   char* Buffer() { return buf_; }
@@ -42,29 +40,16 @@ class IOBuf {
 
   bool Sealed() { return capacity_ == size_; }
 
-  // Copy append new data to the end of the buffer.
-  int Append(char* src, uint32_t length) { return length; }
-
-  std::string Data() {
-    if (IsManagedBuffer()) {
-      return std::string(buf_, size_);
-    }
-    return data_;
-  }
-
- private:
-  // Do we need to free the buffer on destruction of current IOBuf.
-  bool IsManagedBuffer() {
-    return (buf_ != nullptr && data_.empty() && size_ > 0 && capacity_ > 0);
-  }
+  std::string Data() {}
 
  private:
   // If buf is not nullptr, means we need to free space.
   char* buf_ = nullptr;
 
+  // current occupied size
   uint32_t size_ = 0;
-  uint32_t capacity_ = 0;
 
-  std::string data_;
+  // Max usable size
+  uint32_t capacity_ = 0;
 };
 }  // namespace neodb

@@ -16,3 +16,11 @@ sudo docker run --cap-add=SYS_PTRACE \
                 -it -v {HOST_NEODB_PATH}:{CONTAINER_NEODB_PATH} neodb_image
 
 ```
+
+
+## Memory Cost
+NeoDB is designed for columar storage, which means all values should be relatively large (e.g. > 64KB).
+
+If we have a 30TB HDD disk, then:
+- Total KV pairs should probally be 30TB/64KB = 500 Millions
+- Total memory cost is 500M * 30B(average key size) * 2(load factor) = 3000MB

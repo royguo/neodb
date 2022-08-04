@@ -6,5 +6,5 @@ class Slice {
  public:
   Slice() {}
   ~Slice() = default;
-    };
+};
 }
