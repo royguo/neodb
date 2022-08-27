@@ -7,11 +7,11 @@ class NeoDBTest : public ::testing::Test {
   void TearDown() override {}
 };
 
-  TEST_F(NeoDBTest, SimpleTest) {}
+TEST_F(NeoDBTest, SimpleTest) {}
 
-  int main(int argc, char** argv) {
-    // testing::InstallFailureSignalHandler();
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-  }
+int main(int argc, char** argv) {
+  // testing::InstallFailureSignalHandler();
+  testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}
 }  // namespace neodb

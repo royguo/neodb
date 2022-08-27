@@ -1,5 +1,7 @@
 #pragma once
 
+#include <memory>
+
 #include "neodb/io_buf.h"
 #include "neodb/options.h"
 #include "neodb/slice.h"
@@ -9,27 +11,31 @@
 
 namespace neodb {
 
-  class NeoDB {
-    public:
-    NeoDB(const DBOptions& opts): db_options_(opts) {}
-    ~NeoDB() = default;
+class NeoDB {
+ public:
+  NeoDB() {}
 
-    DBOptions& Options() { return db_options_; }
+  NeoDB(const DBOptions& opts) : db_options_(opts) {}
 
-    Status Put(const std::string& key, std::unique_ptr<IOBuf> value);
+  ~NeoDB() = default;
 
-    // Get target value from DB, the underlying implementation will not take
-    // over the ownership of the value.
-    Status Get(const std::string& key, std::unique_ptr<IOBuf>* value) const;
+  DBOptions& Options() { return db_options_; }
 
-    // Check if target key exist in database
-    bool Peek(const std::string& key);
+  // We must enable zero-copy, since our target use case is for large values.
+  Status Put(const std::string& key, std::shared_ptr<IOBuf> value);
 
-    Status Delete(const std::string& key);
+  // Get target value from DB, the underlying implementation will not take
+  // over the ownership of the value.
+  Status Get(const std::string& key, std::shared_ptr<IOBuf>* value);
 
-    Status RecoverData();
+  // Check if target key exist in database
+  bool Peek(const std::string& key);
 
-    private:
-    DBOptions db_options_;
-  };
+  Status Delete(const std::string& key);
+
+  Status RecoverData();
+
+ private:
+  DBOptions db_options_;
+};
 }

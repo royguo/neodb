@@ -5,13 +5,3 @@ AccessModifierOffset: -1
 DerivePointerAlignment: false
 PointerAlignment: Left
 
-IncludeCategories:
-  - Regex: '^\"'
-    Priority: 1000
-  - Regex: '^<(xxhash|lib.*)\.h>'
-    Priority: 2000
-  - Regex: '^<.*/.*'
-    Priority: 2000
-  - Regex: '^<[^/]*>'
-    Priority: 3000
-
