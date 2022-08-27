@@ -25,22 +25,29 @@ namespace neodb {
 //
 // If the address is a memory address, then we should convert it into a char*
 // pointer and read it from a data decoder.
-struct DataPointer {
-  uint64_t address = 0;
-  bool in_memory = false;
-};
 
 // The actual data structure that handles the key value index
 // The implementations should be thread-safe
+class DataPointer {
+ public:
+  // TODO(royguo) We could use std::variant instead
+  std::shared_ptr<IOBuf> mem_ptr;
+  uint64_t disk_ptr;
+  bool on_disk = false;
+};
+
 class IndexHandle {
+ public:
+  static const uint64_t kIndexNotFound;
+
  public:
   IndexHandle() = default;
   virtual ~IndexHandle() = default;
 
  public:
-  virtual Status Put(const std::string& key, DataPointer pointer) = 0;
+  virtual Status Put(const std::string& key, DataPointer ptr) = 0;
 
-  virtual Status Get(const std::string& key, DataPointer* pointer) = 0;
+  virtual Status Get(const std::string& key, DataPointer* ptr) = 0;
 };
 
 class SimpleIndexHandle : public IndexHandle {
@@ -50,17 +57,17 @@ class SimpleIndexHandle : public IndexHandle {
   ~SimpleIndexHandle() = default;
 
  public:
-  Status Put(const std::string& key, DataPointer pointer) override {
-    data_[key] = pointer;
+  Status Put(const std::string& key, DataPointer ptr) override {
+    data_[key] = ptr;
     return Status::OK();
   }
 
-  Status Get(const std::string& key, DataPointer* pointer) override {
+  Status Get(const std::string& key, DataPointer* ptr) override {
     auto it = data_.find(key);
     if (it == data_.end()) {
       return Status::NotFound();
     }
-    *pointer = data_[key];
+    *ptr = data_[key];
     return Status::OK();
   }
 
@@ -70,16 +77,12 @@ class SimpleIndexHandle : public IndexHandle {
 
 // Main index API entry
 class Index {
-  // Index Flags
-  // Indicate the returned value pointer is invalid(not found)
-  static const uint64_t kIndexNotFound;
-
  public:
   // The value is a pointer to the actual data, could be either in memory or
   // on SSD.
-  Status Put(const std::string& key, DataPointer pointer);
+  Status Put(const std::string& key, DataPointer ptr);
 
-  Status Get(const std::string& key, DataPointer* pointer);
+  Status Get(const std::string& key, DataPointer* ptr);
 
  private:
   SimpleIndexHandle handle_;

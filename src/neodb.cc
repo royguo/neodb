@@ -5,6 +5,7 @@
 
 namespace neodb {
 Status NeoDB::Put(const std::string& key, std::shared_ptr<IOBuf> value) {
+  write_buffer_->PushOrWait(key, value);
   return Status::OK();
 }
 

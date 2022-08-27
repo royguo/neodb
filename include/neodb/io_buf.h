@@ -18,16 +18,20 @@ class IOBuf {
   IOBuf() {}
 
   IOBuf(uint32_t capacity) : capacity_(capacity) {
-    assert(capacity % PAGE_SIZE == 0);
     int ret = posix_memalign((void**)&buf_, PAGE_SIZE, capacity);
     if (ret != 0) {
       // TODO
     }
   }
 
+  // Allocate memory & copy target string, useful for short string
+  IOBuf(const std::string& data) : IOBuf(data.size()) {
+    Append(data.data(), data.size());
+  }
+
   ~IOBuf() { free(buf_); }
 
-  void Append(char* src, uint32_t size) {
+  void Append(const char* src, uint32_t size) {
     memcpy(buf_ + size_, src, size);
     size_ += size;
   }

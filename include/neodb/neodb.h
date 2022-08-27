@@ -1,11 +1,13 @@
 #pragma once
 
 #include <memory>
+#include <vector>
 
 #include "neodb/io_buf.h"
 #include "neodb/options.h"
 #include "neodb/slice.h"
 #include "neodb/status.h"
+#include "neodb/write_buffer.h"
 
 #define NEODB_VERSION "1.0.0"
 
@@ -15,7 +17,10 @@ class NeoDB {
  public:
   NeoDB() {}
 
-  NeoDB(const DBOptions& opts) : db_options_(opts) {}
+  NeoDB(const DBOptions& opts) : db_options_(opts) {
+    auto callback = [&](const std::string& key, uint64_t disk_ptr) {};
+    write_buffer_.reset(new WriteBuffer(opts.buffer_size, callback));
+  }
 
   ~NeoDB() = default;
 
@@ -37,5 +42,10 @@ class NeoDB {
 
  private:
   DBOptions db_options_;
+
+  std::shared_ptr<Index> index_;
+
+  // holds all incoming write records
+  std::shared_ptr<WriteBuffer> write_buffer_;
 };
 }

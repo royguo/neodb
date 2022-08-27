@@ -2,14 +2,14 @@
 
 namespace neodb {
 
-const uint64_t Index::kIndexNotFound = 0xffffffffffffffff;
+const uint64_t IndexHandle::kIndexNotFound = 0xffffffffffffffff;
 
-Status Index::Put(const std::string& key, DataPointer pointer) {
-  return handle_.Put(key, pointer);
+Status Index::Put(const std::string& key, DataPointer ptr) {
+  return handle_.Put(key, ptr);
 }
 
-Status Index::Get(const std::string& key, DataPointer* pointer) {
-  return handle_.Get(key, pointer);
+Status Index::Get(const std::string& key, DataPointer* ptr) {
+  return handle_.Get(key, ptr);
 }
 
 }  // neodb

@@ -14,14 +14,17 @@ class IndexTest : public ::testing::Test {
 TEST_F(IndexTest, SimpleTest) {
   Index idx;
 
-  DataPointer pointer{0x1001UL, false};
+  DataPointer pointer;
+  pointer.on_disk = true;
+  pointer.disk_ptr = 10010ULL;
   idx.Put("key1", pointer);
 
   // Found
   DataPointer ret;
   auto s = idx.Get("key1", &ret);
   ASSERT_TRUE(s.ok());
-  ASSERT_TRUE(ret.address == pointer.address);
+  ASSERT_TRUE(ret.on_disk);
+  ASSERT_TRUE(ret.disk_ptr == pointer.disk_ptr);
 
   // Not found
   s = idx.Get("key2", &ret);
