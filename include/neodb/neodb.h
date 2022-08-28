@@ -19,7 +19,8 @@ class NeoDB {
 
   NeoDB(const DBOptions& opts) : db_options_(opts) {
     auto callback = [&](const std::string& key, uint64_t disk_ptr) {};
-    write_buffer_.reset(new WriteBuffer(opts.buffer_size, callback));
+    write_buffer_.reset(
+        new WriteBuffer(opts.buffer_size, opts.queue_num, callback));
   }
 
   ~NeoDB() = default;

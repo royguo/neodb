@@ -8,5 +8,9 @@ struct DBOptions {
 
   // total buffer size
   uint32_t buffer_size = 256 << 20;
+
+  // how many underlying queue inside the write buffer(they will share the max
+  // buffer size)
+  int queue_num = 4;
 };
 }
