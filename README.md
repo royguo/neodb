@@ -1,6 +1,5 @@
 # neodb
 
-
 ## Docker Image
 You could use the `docker/Dockerfile` to compile & run NeoDB's docker image for development or demo run.
 

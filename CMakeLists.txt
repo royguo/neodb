@@ -16,6 +16,9 @@ ENDIF()
 
 # options log
 
+# third-parties
+# ADD_SUBDIRECTORY(third)
+
 # header files
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/include)
 
@@ -26,6 +29,7 @@ LIST(REMOVE_ITEM SOURCE_FILES ${TEST_FILES})
 
 # build neodb library
 ADD_LIBRARY(neodb STATIC ${SOURCE_FILES})
+TARGET_LINK_LIBRARIES(neodb zbd)
 
 # build neodb test cases
 ENABLE_TESTING()

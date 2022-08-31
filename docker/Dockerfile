@@ -13,7 +13,7 @@ RUN apt-get update \
   && apt-get install wget xz-utils git vim curl zsh build-essential python -y
 
 # install third-party dependencies
-RUN apt-get install libgtest-dev -y
+RUN apt-get install libgtest-dev libzbd-dev -y
 
 # on-my-zsh
 RUN yes | sh -c "$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
