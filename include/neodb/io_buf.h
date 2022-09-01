@@ -44,7 +44,7 @@ class IOBuf {
 
   bool Sealed() { return capacity_ == size_; }
 
-  std::string Data() {}
+  std::string Data() { return std::string(buf_, size_);}
 
  private:
   // If buf is not nullptr, means we need to free space.

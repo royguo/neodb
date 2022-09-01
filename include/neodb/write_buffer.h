@@ -7,6 +7,7 @@
 #include <memory>
 #include <mutex>
 #include <queue>
+#include <functional>
 #include <vector>
 
 #include "neodb/index.h"

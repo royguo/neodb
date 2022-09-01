@@ -1,5 +1,12 @@
 # neodb
 
+## Dependencies
+If you don't want to use docker build, please install these dependencies before compile NeoDB:
+
+```
+apt-get install -y libgtest-dev libzbd-dev
+```
+
 ## Docker Image
 You could use the `docker/Dockerfile` to compile & run NeoDB's docker image for development or demo run.
 
