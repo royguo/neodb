@@ -3,6 +3,18 @@
 ## Docker Image
 You could use the `docker/Dockerfile` to compile & run NeoDB's docker image for development or demo run.
 
+
+First you need to install docker:
+
+```
+# debian buster
+apt-get install docker.io
+# debian stretch/jessie
+apt-get install docker-ce
+```
+
+
+Then ,create docker image and run container:
 ```
 cd docker
 # build the docker image, name it as `neodb_image`
