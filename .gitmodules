@@ -1,0 +1,6 @@
+[submodule "third/googletest"]
+	path = third/googletest
+	url = git@github.com:google/googletest.git
+[submodule "third/spdlog"]
+	path = third/spdlog
+	url = git@github.com:gabime/spdlog.git

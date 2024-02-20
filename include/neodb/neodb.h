@@ -3,11 +3,11 @@
 #include <memory>
 #include <vector>
 
+#include "../../src/deprecated/write_buffer_bak.h"
 #include "neodb/io_buf.h"
 #include "neodb/options.h"
 #include "neodb/slice.h"
 #include "neodb/status.h"
-#include "neodb/write_buffer.h"
 
 #define NEODB_VERSION "1.0.0"
 

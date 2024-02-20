@@ -7,16 +7,14 @@ class Status {
   enum Code { kOK = 0, kNotFound, kIOError };
 
  public:
-  static Status OK(const std::string& msg = "") {
-    return Status(Code::kOK, msg);
-  }
+  static Status OK(const std::string& msg = "") { return {Code::kOK, msg}; }
 
   static Status NotFound(const std::string& msg = "") {
-    return Status(Code::kNotFound, msg);
+    return {Code::kNotFound, msg};
   }
 
   static Status IOError(const std::string& msg = "") {
-    return Status(Code::kIOError, msg);
+    return {Code::kIOError, msg};
   }
 
  public:
@@ -32,4 +30,4 @@ class Status {
 
   std::string msg_;
 };
-}
+}  // namespace neodb

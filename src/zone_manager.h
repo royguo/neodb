@@ -1,99 +1,77 @@
 #pragma once
-
-#include "neodb/status.h"
-
-#include <list>
-#include <map>
 #include <memory>
-#include <vector>
+#include <utility>
+#include <list>
+
+#include "io.h"
+#include "neodb/io_buf.h"
+#include "neodb/options.h"
+#include "neodb/status.h"
+#include "write_buffer.h"
 
 namespace neodb {
-class Zone {
- public:
-  enum Type : uint8_t { kWAL = 0, kMeta, kData };
 
- public:
-  Zone() = default;
-  Zone(uint64_t offset, uint32_t capacity, uint32_t wp) {}
-
- private:
-  uint32_t zone_capacity_ = 256UL << 20;
-  // write pointer, append only
-  uint32_t wp_ = 0;
-  // global LBA offset of current zone
-  uint64_t start_offset_ = 0;
-};
-
-struct OpenZoneDeviceOptions {
-  bool open_exist_db = true;
-  std::string db_path;
-};
-
-// This ZoneManager is not thread-safe so we have to make sure that each disk
-// can only has a single thread submitting IOs
-//
-// Disk Data laayout:
-//   [Meta Zone] [Meta Zone] [...] [Data Zone] ... [Meta Zone] ... [...]
-//
-// Zone data layout:
-//   [zone header 4KB][zone data][zone footer 4KB]
-//
-// Zone header(4KB):
-//   [CRC 4B]
-//   [LENGTH 4B]
-//   [DB_ID 4B]
-//   [SEQ_NUMBER 4B]
-//   [ZONE_TYPE 1B]
-//   [...]
-//   [PADDING]
-// Zone footer(4KB)
-//
 class ZoneManager {
  public:
-  ZoneManager(const OpenZoneDeviceOptions& options) : options_(options) {
-    if (!options.open_exist_db) {
-      InitializeDB();
-      return;
+  explicit ZoneManager(DBOptions options, std::unique_ptr<IOHandle> io_handle)
+      : options_(std::move(options)), io_handle_(std::move(io_handle)) {
+    for (int i = 0; i < options_.writable_buffer_num; ++i) {
+      writable_buffers_.emplace_back(new WriteBuffer());
     }
-    Recovery();
   }
 
-  ~ZoneManager() = default;
+  // Start a dedicated flush worker
+  void StartFlushWorker() {
+    flush_worker_started_ = true;
+    flush_worker_ = std::thread([&]() {
+      while (flush_worker_started_) {
+        TryFlush();
+      }
+      LOG(INFO, "ZoneManager FlushWorker stopped");
+    });
+    LOG(INFO, "ZoneManager FlushWorker started");
+  }
 
- public:
-  Status Append(uint32_t zone_id, const char* data, uint32_t size);
+  void StopFlushWorker() { flush_worker_started_ = false; }
 
-  Status Read();
+  Status Append(const std::string& key, std::shared_ptr<IOBuf> value);
 
-  // Recovery from existing database.
-  // If there's no existing valid data on the disk, we will initialize a new
-  // database.
-  // If there's some existing valid data, we will try to recover them as much as
-  // possible.
-  void Recovery();
+  void TryFlush();
 
-  // Initialize a new database, erase all existing data.
-  void InitializeDB();
+  //  uint32_t Size() { return items_.size(); }
+
+  // Compress the target value and add CRC.
+  // Format: [CRC 4B][Key Length 2B][Value Length 4B][KV with CRC]
+  // [KV WITH CRC] means if the total size of the buffer exceeds block size
+  // (32K) We will add new CRC in the middle of the KV item.
+  //
+  // @param buf Pre-allocated buffer
+  // @param wp Write pointer of the buffer where we should put our encoded data.
+  // @return Encoded buffer size
+  //  uint32_t EncodeSingleItem(char* buf, uint32_t wp, const char* key,
+  //                            uint16_t key_sz, const char* value,
+  //                            uint32_t value_sz);
+
+  // Decompress the target value and verify CRC
+  // @param encoded_buf The encoded kv buffer with CRC and compression
+  // @param key Decoded key
+  // @param value Decoded value
+  //  void DecodeSingleItem(const char* encoded_buf, std::shared_ptr<IOBuf> key,
+  //                        std::shared_ptr<IOBuf> value);
 
  private:
-  // Scan all zone headers & footers and init the zone list vector.
-  void InitializeZoneVector();
+  DBOptions options_;
 
- private:
-  // All zone sorted by LBA asc
-  std::vector<std::shared_ptr<Zone>> zones_;
+  std::unique_ptr<IOHandle> io_handle_;
 
-  // Track all active zones for different zone types
-  std::map<Zone::Type, std::list<std::shared_ptr<Zone>>> active_zones_;
+  std::vector<std::unique_ptr<WriteBuffer>> writable_buffers_;
 
-  // Maximum number of zones that could be actived for write, for ZNS SSD we can
-  // get this info from device. For conventional SSD we could assume that we
-  // have unlimited active zone number
-  int max_active_zone_number_ = 0;
+  std::list<std::unique_ptr<WriteBuffer>> immutable_buffers_;
+  std::condition_variable immutable_buffer_cv_;
+  std::mutex immutable_buffer_mtx_;
 
-  // Current zone count that has been actived for write.
-  int active_zone_count_ = 0;
+  std::atomic<bool> flush_worker_started_{false};
 
-  OpenZoneDeviceOptions options_;
+  std::thread flush_worker_;
 };
-}
+}  // namespace neodb
