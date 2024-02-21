@@ -30,9 +30,15 @@ class WriteBuffer {
  private:
   std::vector<Item> items_;
 
+  // We will calculate target encoded buffers size before the actual encoding.
+  // Data layout is defined in `codec.h`.
+  uint32_t expected_encoded_sz_ = 0;
+
   uint32_t capacity_bytes_ = 256UL << 20;
 
   uint32_t used_bytes_ = 0;
+
+  bool immutable = false;
 
   std::mutex mtx_;
 };

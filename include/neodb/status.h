@@ -17,6 +17,10 @@ class Status {
     return {Code::kIOError, msg};
   }
 
+  static Status StatusError(const std::string& msg = "status not valid") {
+    return {Code::kIOError, msg};
+  }
+
  public:
   Status(Code code) : code_(code) {}
   Status(Code code, const std::string& msg) : code_(code), msg_(msg) {}
