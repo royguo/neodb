@@ -19,27 +19,29 @@ class WriteBuffer {
  public:
   WriteBuffer() = default;
 
-  WriteBuffer(WriteBuffer&& buffer) {
+  WriteBuffer(WriteBuffer&& buffer) noexcept {
     items_ = std::move(buffer.items_);
     capacity_bytes_ = buffer.capacity_bytes_;
     used_bytes_ = buffer.used_bytes_;
   }
 
-  Status Put(const std::string& key, std::shared_ptr<IOBuf> value);
+  Status Put(const std::string& key, const std::shared_ptr<IOBuf>& value);
+
+  bool IsFull() const { return used_bytes_ >= capacity_bytes_; }
+
+  bool IsImmutable() const { return immutable; }
+
+  void MarkImmutable() { immutable = true; }
+
+  std::vector<Item>* GetItems() { return &items_; }
 
  private:
   std::vector<Item> items_;
-
-  // We will calculate target encoded buffers size before the actual encoding.
-  // Data layout is defined in `codec.h`.
-  uint32_t expected_encoded_sz_ = 0;
 
   uint32_t capacity_bytes_ = 256UL << 20;
 
   uint32_t used_bytes_ = 0;
 
   bool immutable = false;
-
-  std::mutex mtx_;
 };
 }  // namespace neodb

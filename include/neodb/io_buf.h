@@ -48,7 +48,9 @@ class IOBuf {
 
   char* Buffer() { return buf_; }
 
-  uint32_t Size() { return size_; }
+  uint32_t Size() const { return size_; }
+
+  uint32_t AvailableSize() const { return capacity_ - size_; }
 
   void IncreaseSize(uint32_t sz) { size_ += sz; }
 

@@ -13,12 +13,13 @@ class ZoneManagerTest : public ::testing::Test {
  public:
   std::string filename_;
   ZoneManager* zone_manager_;
+  DBOptions options_;
 
   void SetUp() override {
     filename_ =
         FileUtils::GenerateRandomFile("zone_manager_test_file_", 1UL << 30);
     auto io_handle = std::make_unique<FileIOHandle>(filename_);
-    zone_manager_ = new ZoneManager(std::move(io_handle));
+    zone_manager_ = new ZoneManager(options_, std::move(io_handle));
   }
 
   void TearDown() override {
@@ -27,21 +28,23 @@ class ZoneManagerTest : public ::testing::Test {
   }
 };
 
-TEST_F(ZoneManagerTest, EncodeSingleItemTest) {
-  char* buf = nullptr;
-  int ret = posix_memalign((void**)&buf, 4UL << 10, 16UL << 10);
-  EXPECT_TRUE(ret == 0);
-  std::string key = "key12345";
-  std::string value = "value67890";
-  uint32_t encoded_size = zone_manager_->EncodeSingleItem(
-      buf, key.c_str(), key.size(), value.c_str(), value.size());
-  EXPECT_GT(encoded_size, 0);
+TEST_F(ZoneManagerTest, ProcessSingleItemTest) {
+  std::shared_ptr<IOBuf> buffer = std::make_shared<IOBuf>(32UL << 10);
+  char* ptr = buffer->Buffer();
 
-  std::shared_ptr<IOBuf> decoded_key;
-  std::shared_ptr<IOBuf> decoded_value;
-  zone_manager_->DecodeSingleItem(buf, decoded_key, decoded_value);
-  EXPECT_EQ(key, decoded_key->Data());
-  EXPECT_EQ(value, decoded_value->Data());
+  std::string key = StringUtils::GenerateRandomString(10);
+  std::shared_ptr<IOBuf> value =
+      std::make_shared<IOBuf>(StringUtils::GenerateRandomString(10UL << 10));
+
+  bool reminding = zone_manager_->ProcessSingleItem(
+      buffer, key, value,
+      [](const std::shared_ptr<IOBuf>& encoded_buf, bool reset_buf) {});
+
+  EXPECT_TRUE(reminding);
+  EXPECT_EQ(key.size(), *reinterpret_cast<uint16_t*>(ptr));
+  EXPECT_EQ(value->Size(), *reinterpret_cast<uint32_t*>(ptr + 2));
+  EXPECT_EQ(key, std::string(ptr + 6, key.size()));
+  EXPECT_EQ(value->Data(), std::string(ptr + 6 + key.size(), value->Size()));
 }
 
 int main(int argc, char** argv) {

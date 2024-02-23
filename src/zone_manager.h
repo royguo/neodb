@@ -1,7 +1,7 @@
 #pragma once
+#include <list>
 #include <memory>
 #include <utility>
-#include <list>
 
 #include "io.h"
 #include "neodb/io_buf.h"
@@ -18,6 +18,10 @@ class ZoneManager {
     for (int i = 0; i < options_.writable_buffer_num; ++i) {
       writable_buffers_.emplace_back(new WriteBuffer());
     }
+    // We cannot `resize` the writable_buffer_mtx_ directly because std::mutex
+    // is not movable but the std::vector is.
+    std::vector<std::mutex> mutexes(options_.writable_buffer_num);
+    writable_buffer_mtx_ = std::move(mutexes);
   }
 
   // Start a dedicated flush worker
@@ -35,6 +39,18 @@ class ZoneManager {
   void StopFlushWorker() { flush_worker_started_ = false; }
 
   Status Append(const std::string& key, std::shared_ptr<IOBuf> value);
+
+  // Encode a single key value item into the target buffer. If the target buffer
+  // is full, then use `func` as callback to process the buffer. Then continue
+  // to encode the rest of the key value data. If the buffer is not full and the
+  // key value data is fully consumed, then stop the processing. Note that after
+  // the processing, the target buffer may still contain some data.
+  //
+  // @return True if the target buffer has un processed data.
+  bool ProcessSingleItem(
+      std::shared_ptr<IOBuf> buf, const std::string& key,
+      std::shared_ptr<IOBuf> value,
+      std::function<void(std::shared_ptr<IOBuf>, bool /*reset buffer*/)>);
 
   void TryFlush();
 
@@ -65,6 +81,8 @@ class ZoneManager {
   std::unique_ptr<IOHandle> io_handle_;
 
   std::vector<std::unique_ptr<WriteBuffer>> writable_buffers_;
+  // Each of the write buffer slot need to have a lock.
+  std::vector<std::mutex> writable_buffer_mtx_;
 
   std::list<std::unique_ptr<WriteBuffer>> immutable_buffers_;
   std::condition_variable immutable_buffer_cv_;
