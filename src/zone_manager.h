@@ -46,34 +46,15 @@ class ZoneManager {
   // key value data is fully consumed, then stop the processing. Note that after
   // the processing, the target buffer may still contain some data.
   //
+  // @param func Callback if the item is fully appended to the buffer (probably)
+  // not yet flushed.
   // @return True if the target buffer has un processed data.
-  bool ProcessSingleItem(
-      std::shared_ptr<IOBuf> buf, const std::string& key,
-      std::shared_ptr<IOBuf> value,
-      std::function<void(std::shared_ptr<IOBuf>, bool /*reset buffer*/)>);
+  bool ProcessSingleItem(const std::shared_ptr<IOBuf>& buf,
+                         const std::string& key,
+                         const std::shared_ptr<IOBuf>& value,
+                         const std::function<void(uint64_t append_lba)>&);
 
   void TryFlush();
-
-  //  uint32_t Size() { return items_.size(); }
-
-  // Compress the target value and add CRC.
-  // Format: [CRC 4B][Key Length 2B][Value Length 4B][KV with CRC]
-  // [KV WITH CRC] means if the total size of the buffer exceeds block size
-  // (32K) We will add new CRC in the middle of the KV item.
-  //
-  // @param buf Pre-allocated buffer
-  // @param wp Write pointer of the buffer where we should put our encoded data.
-  // @return Encoded buffer size
-  //  uint32_t EncodeSingleItem(char* buf, uint32_t wp, const char* key,
-  //                            uint16_t key_sz, const char* value,
-  //                            uint32_t value_sz);
-
-  // Decompress the target value and verify CRC
-  // @param encoded_buf The encoded kv buffer with CRC and compression
-  // @param key Decoded key
-  // @param value Decoded value
-  //  void DecodeSingleItem(const char* encoded_buf, std::shared_ptr<IOBuf> key,
-  //                        std::shared_ptr<IOBuf> value);
 
  private:
   DBOptions options_;

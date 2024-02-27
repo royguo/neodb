@@ -41,6 +41,12 @@ class IOBuf {
     size_ += size;
   }
 
+  // Skip a certain amount of bytes.
+  void AppendZeros(uint32_t sz) {
+    memset(buf_ + size_, 0, sz);
+    size_ += sz;
+  }
+
   void Append(const std::string& data) {
     memcpy(buf_ + size_, data.c_str(), data.size());
     size_ += data.size();

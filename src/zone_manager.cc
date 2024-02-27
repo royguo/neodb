@@ -10,7 +10,8 @@
 namespace neodb {
 
 #define FLUSH_IO_SIZE (32UL << 10)
-#define SECTOR_SIZE (512)
+// TODO(Roy Guo) Shall we limit the key size?
+#define MAX_KEY_SIZE (1024)
 
 Status ZoneManager::Append(const std::string& key,
                            std::shared_ptr<IOBuf> value) {
@@ -58,74 +59,47 @@ void ZoneManager::TryFlush() {
   auto* ptr = encoded_buf->Buffer();
   auto* cur_ptr = ptr;
 
-  uint16_t meta_sz = 6;  // 2B key len + 4B value len
+  std::vector<uint64_t> lba_vec;
   auto* items = immutable->GetItems();
-  // iterate all kv items and encode them to the IO buffer, if the buffer
-  // exceeds IO limit (e.g. 256KB), flush it.
   for (auto& item : *items) {
-    uint16_t key_sz = item.first.size();
-    uint32_t value_sz = item.second->Size();
-    // We should use a new empty buffer if there's no enough free space.
-    if (available_sz <= (key_sz + meta_sz)) {
-      //      io_handle_->Write();
-      available_sz = FLUSH_IO_SIZE;
-      cur_ptr = ptr;
-      encoded_buf->Reset();
-    }
-
-    // append meta and key data
-    memcpy(cur_ptr, &key_sz, 2);
-    memcpy(cur_ptr + 2, &value_sz, 4);
-    memcpy(cur_ptr + 6, item.first.c_str(), key_sz);
-    cur_ptr += (6 + key_sz);
-    available_sz -= (6 + key_sz);
-
-    // append value data
-    auto* value_ptr = item.second->Buffer();
-    auto* value_cur_ptr = value_ptr;
-
-    while (value_cur_ptr - value_ptr != value_sz) {
-      uint32_t sz = std::min(available_sz,
-                             value_sz - uint32_t(value_cur_ptr - value_ptr));
-      memcpy(cur_ptr, value_cur_ptr, sz);
-      cur_ptr += sz;
-      value_cur_ptr += sz;
-      available_sz -= sz;
-
-      // If there's no more reminding value data, we should stop here
-      if (value_cur_ptr - value_ptr == value_sz && available_sz > 0) {
-        break;
-      }
-      // if there's still more value data, we should flush current buffer and
-      // continue.
-      //      io_handle_->Write()
-      if (available_sz == 0) {
-        encoded_buf->Reset();
-        cur_ptr = ptr;
-        available_sz = IO_BLOCK_SIZE;
-      }
-    }
-    // If all items were consumed but there still have some data in the buffer,
-    // we should flush them too.
-    if (cur_ptr - ptr > 0) {
-      //      io_handle_->Write()
-    }
+    // TODO Get current lba write pointer
+    // uint64_t current_lba = io_handle_->
+    ProcessSingleItem(encoded_buf, item.first, item.second,
+                      [&lba_vec](uint64_t lba) { lba_vec.push_back(lba); });
+  }
+  // Flush the reminding bytes of the buffer.
+  if (encoded_buf->AvailableSize() < FLUSH_IO_SIZE) {
+    io_handle_->Append(encoded_buf);
   }
 
-  // TODO(Roy Guo) update related index, point the index to LBA address
+  // TODO(Roy Guo) Update related index of the keys
+
+  // TODO(Roy Guo) Release the immutable buffer and free memory
 }
 
-bool ZoneManager::ProcessSingleItem(
-    std::shared_ptr<IOBuf> buf, const std::string& key,
-    std::shared_ptr<IOBuf> value,
-    std::function<void(std::shared_ptr<IOBuf>, bool)> func) {
-  const uint16_t meta_sz = 6;  // 2B key len + 4B value len
+bool ZoneManager::ProcessSingleItem(const std::shared_ptr<IOBuf>& buf,
+                                    const std::string& key,
+                                    const std::shared_ptr<IOBuf>& value,
+                                    const std::function<void(uint64_t)>& func) {
+  assert(key.size() <= MAX_KEY_SIZE);
+  // Expected flush LBA for current key value item.
+  uint64_t lba = io_handle_->GetWritePointer() + buf->Size();
+
+  // meta: Key Len 2B + Value Len 4B
+  // TODO: add CRC to protect the meta info.
+  const uint16_t meta_sz = 6;
   const uint16_t key_sz = key.size();
   const uint32_t value_sz = value->Size();
   // We should process item buffer and then reset it if there's no enough free
   // space for key data and meta
   if (buf->AvailableSize() <= (key_sz + meta_sz)) {
-    func(buf, true /* reset buffer */);
+    LOG(DEBUG, "buffer almost full, size: {}", buf->Size());
+    // skip the last few bytes for next writing as item lba offset.
+    lba += (buf->AvailableSize());
+    buf->Reset();
+    io_handle_->Append(buf);
+    LOG(DEBUG, "buffer flushed, buffer cap: {}, buffer size: {}, lba: {}",
+        buf->Capacity(), buf->Size(), io_handle_->GetWritePointer());
   }
 
   // Append item meta (key sz, value sz) and key data
@@ -152,8 +126,14 @@ bool ZoneManager::ProcessSingleItem(
     // now, so we should process current buffer.
     // If we are lucy enough that both value data and target buffer is consumed,
     // we should reset the buffer.
-    func(buf, buf->AvailableSize() == 0 /* reset buffer */);
+    if (buf->AvailableSize() == 0) {
+      LOG(DEBUG, "buffer flushed, io size: {}, lba = {}", buf->Capacity(),
+          io_handle_->GetWritePointer());
+      io_handle_->Append(buf);
+      buf->Reset();
+    }
   }
+  func(lba);
   return buf->AvailableSize() > 0;
 }
 }  // namespace neodb

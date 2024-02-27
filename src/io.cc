@@ -3,10 +3,10 @@
 #include "neodb/logger.h"
 
 namespace neodb {
-Status FileIOHandle::Write(uint64_t offset, uint32_t size,
-                           std::shared_ptr<IOBuf> data) {
-  uint64_t ret = pwrite(write_fd_, data->Buffer(), size, int64_t(offset));
-  if (ret != size) {
+Status FileIOHandle::Write(uint64_t offset, std::shared_ptr<IOBuf> data) {
+  uint64_t ret =
+      pwrite(write_fd_, data->Buffer(), data->Size(), int64_t(offset));
+  if (ret != data->Size()) {
     LOG(ERROR, "Failed to write data: {} ", std::strerror(errno));
     return Status::IOError("Write failed!");
   }
@@ -22,5 +22,11 @@ Status FileIOHandle::Read(uint64_t offset, uint32_t size,
     return Status::IOError("Read failed!");
   }
   return Status::OK();
+}
+
+Status FileIOHandle::Append(std::shared_ptr<IOBuf> data) {
+  auto s = Write(wp_, data);
+  wp_ += data->Size();
+  return s;
 }
 }  // namespace neodb

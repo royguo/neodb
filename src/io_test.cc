@@ -40,7 +40,7 @@ TEST_F(IOTest, SingleWriteTest) {
 
   auto buf = std::make_shared<IOBuf>((10));
   buf->Append("1234567890");
-  Status s = io_handle.Write(0, 10, buf);
+  Status s = io_handle.Write(0, buf);
   EXPECT_TRUE(s.ok());
   buf->Reset();
   io_handle.Read(0, 10, buf);
@@ -59,7 +59,7 @@ TEST_F(IOTest, MultiWriteTest) {
     values.emplace_back(StringUtils::GenerateRandomString(10UL << 10));
     buf->Append(values.back());
     // Write 10KB each 100MB offset.
-    io_handle.Write(i * (100UL << 20), 10UL << 10, buf);
+    io_handle.Write(i * (100UL << 20), buf);
   }
 
   // Read & Check

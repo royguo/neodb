@@ -18,11 +18,20 @@ class IOHandle {
  public:
   virtual ~IOHandle() = default;
 
-  virtual Status Write(uint64_t offset, uint32_t size,
-                       std::shared_ptr<IOBuf> data) = 0;
+  virtual Status Write(uint64_t offset, std::shared_ptr<IOBuf> data) = 0;
 
   virtual Status Read(uint64_t offset, uint32_t size,
                       std::shared_ptr<IOBuf> value) = 0;
+
+  virtual Status Append(std::shared_ptr<IOBuf> data) = 0;
+
+  void Seek(uint64_t wp) { wp_ = wp; }
+
+  uint64_t GetWritePointer() { return wp_; }
+
+ protected:
+  // Append write pointer
+  uint64_t wp_;
 };
 
 // class S3IOHandle : public IOHandle {};
@@ -58,11 +67,12 @@ class FileIOHandle : public IOHandle {
     close(read_fd_);
   }
 
-  Status Write(uint64_t offset, uint32_t size,
-               std::shared_ptr<IOBuf> data) override;
+  Status Write(uint64_t offset, std::shared_ptr<IOBuf> data) override;
 
   Status Read(uint64_t offset, uint32_t size,
               std::shared_ptr<IOBuf> value) override;
+
+  Status Append(std::shared_ptr<IOBuf> data) override;
 
  private:
   int write_fd_;
