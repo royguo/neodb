@@ -68,7 +68,7 @@ TEST_F(ZoneManagerTest, ProcessSingleItemTest) {
       std::make_shared<IOBuf>(StringUtils::GenerateRandomString(22UL << 10));
   reminding =
       zone_manager_->FlushSingleItem(buffer, key, value, [&](uint64_t lba) {
-        LOG(INFO, "item flushed");
+        LOG(INFO, "item appended");
         EXPECT_EQ(lba, (10UL << 10) + 16 + 6 + 2);
         EXPECT_EQ(key.size(), *reinterpret_cast<uint16_t*>(ptr));
         EXPECT_EQ(value->Size(), *reinterpret_cast<uint32_t*>(ptr + 2));
@@ -84,10 +84,48 @@ TEST_F(ZoneManagerTest, ProcessSingleItemTest) {
   reminding =
       zone_manager_->FlushSingleItem(buffer, key, value, [&](uint64_t lba) {
         EXPECT_EQ(lba, (10UL << 10) + 16 + 6 + 2 + (22UL << 10) + 16);
-        LOG(INFO, "item flushed");
+        LOG(INFO, "item appended");
       });
   EXPECT_TRUE(reminding);
   EXPECT_EQ(buffer->Size(), 56);
+}
+
+TEST_F(ZoneManagerTest, WriteAndRestTest) {
+  std::shared_ptr<IOBuf> buffer = std::make_shared<IOBuf>(32UL << 10);
+
+  // Write two items
+  std::string key1 = StringUtils::GenerateRandomString(10);
+  std::shared_ptr<IOBuf> value1 =
+      std::make_shared<IOBuf>(StringUtils::GenerateRandomString(10UL << 10));
+  bool reminding =
+      zone_manager_->FlushSingleItem(buffer, key1, value1, [](uint64_t lba) {
+        EXPECT_EQ(lba, 0);
+        LOG(INFO, "item appended, lba offset: {}", lba);
+      });
+  EXPECT_TRUE(reminding);
+
+  std::string key2 = StringUtils::GenerateRandomString(10);
+  std::shared_ptr<IOBuf> value2 =
+      std::make_shared<IOBuf>(StringUtils::GenerateRandomString(22496));
+  reminding =
+      zone_manager_->FlushSingleItem(buffer, key2, value2, [](uint64_t lba) {
+        EXPECT_EQ(lba, (10UL << 10) + 16);
+        LOG(INFO, "item appended, lba offset: {}", lba);
+      });
+  EXPECT_TRUE(reminding);
+
+  // Read them out and verify
+  std::shared_ptr<IOBuf> read_value1;
+  std::string read_key1;
+  zone_manager_->ReadSingleItem(0, &read_key1, read_value1);
+  EXPECT_EQ(read_key1, key1);
+  EXPECT_EQ(read_value1->Data(), value1->Data());
+
+  std::shared_ptr<IOBuf> read_value2;
+  std::string read_key2;
+  zone_manager_->ReadSingleItem((10UL << 10) + 16, &read_key2, read_value2);
+  EXPECT_EQ(read_key2, key2);
+  EXPECT_EQ(read_value2->Data(), value2->Data());
 }
 
 int main(int argc, char** argv) {

@@ -58,7 +58,7 @@ class IOBuf {
   // Shrink current buffer to [offset, offset + sz). After the shrinking
   // we cannot write to the buffer anymore.
   void Shrink(uint64_t offset, uint32_t sz) {
-    assert(offset + sz < capacity_);
+    assert(offset + sz <= capacity_);
     buf_ += offset;
     size_ = sz;
     capacity_ -= offset;

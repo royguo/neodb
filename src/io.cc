@@ -32,6 +32,7 @@ Status FileIOHandle::Read(uint64_t offset, std::shared_ptr<IOBuf> data) {
     LOG(ERROR, "Failed to read data, msg: {}", std::strerror(errno));
     return Status::IOError(std::strerror(errno));
   }
+  data->IncreaseSize(ret);
   return Status::OK();
 }
 

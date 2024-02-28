@@ -61,7 +61,7 @@ void ZoneManager::TryFlush() {
     // TODO Get current lba write pointer
     // uint64_t current_lba = io_handle_->
     FlushSingleItem(encoded_buf, item.first, item.second,
-                     [&lba_vec](uint64_t lba) { lba_vec.push_back(lba); });
+                    [&lba_vec](uint64_t lba) { lba_vec.push_back(lba); });
   }
   // Flush the reminding bytes of the buffer.
   if (encoded_buf->AvailableSize() < IO_FLUSH_SIZE) {
@@ -74,9 +74,9 @@ void ZoneManager::TryFlush() {
 }
 
 bool ZoneManager::FlushSingleItem(const std::shared_ptr<IOBuf>& buf,
-                                   const std::string& key,
-                                   const std::shared_ptr<IOBuf>& value,
-                                   const std::function<void(uint64_t)>& func) {
+                                  const std::string& key,
+                                  const std::shared_ptr<IOBuf>& value,
+                                  const std::function<void(uint64_t)>& func) {
   assert(key.size() <= MAX_KEY_SIZE);
   // Expected flush LBA for current key value item.
   uint64_t lba = io_handle_->GetWritePointer() + buf->Size();
@@ -134,7 +134,7 @@ bool ZoneManager::FlushSingleItem(const std::shared_ptr<IOBuf>& buf,
 }
 
 Status ZoneManager::ReadSingleItem(uint64_t offset, std::string* key,
-                                   std::shared_ptr<IOBuf> value) {
+                                   std::shared_ptr<IOBuf>& value) {
   const int meta_sz = 6;
   int header_read_size = IO_PAGE_SIZE;
   uint64_t align = offset % IO_PAGE_SIZE;
@@ -158,6 +158,7 @@ Status ZoneManager::ReadSingleItem(uint64_t offset, std::string* key,
   if (!s.ok()) {
     return s;
   }
+  *key = std::string(value->Buffer() + align + meta_sz, key_sz);
   value->Shrink(align + meta_sz + key_sz, value_sz);
   return Status::OK();
 }

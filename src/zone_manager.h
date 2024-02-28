@@ -50,14 +50,14 @@ class ZoneManager {
   // not yet flushed.
   // @return True if the target buffer has un processed data.
   bool FlushSingleItem(const std::shared_ptr<IOBuf>& buf,
-                        const std::string& key,
-                        const std::shared_ptr<IOBuf>& value,
-                        const std::function<void(uint64_t append_lba)>&);
+                       const std::string& key,
+                       const std::shared_ptr<IOBuf>& value,
+                       const std::function<void(uint64_t append_lba)>&);
 
   // Read a single key value item from the device
   // @param offset The item's LBA offset on the device, including item meta.
   Status ReadSingleItem(uint64_t offset, std::string* key,
-                        std::shared_ptr<IOBuf> value);
+                        std::shared_ptr<IOBuf>& value);
 
   void TryFlush();
 
