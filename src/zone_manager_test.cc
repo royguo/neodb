@@ -37,7 +37,7 @@ TEST_F(ZoneManagerTest, ProcessSingleItemTest) {
   std::shared_ptr<IOBuf> value =
       std::make_shared<IOBuf>(StringUtils::GenerateRandomString(10UL << 10));
 
-  bool reminding = zone_manager_->ProcessSingleItem(
+  bool reminding = zone_manager_->FlushSingleItem(
       buffer, key, value, [](uint64_t lba) { EXPECT_EQ(lba, 0); });
 
   // total size = 6 + 10 + 10KB
@@ -51,7 +51,7 @@ TEST_F(ZoneManagerTest, ProcessSingleItemTest) {
   // total size = 6 + 10 + 10KB + 6 + 2
   key = StringUtils::GenerateRandomString(1);
   value = std::make_shared<IOBuf>(StringUtils::GenerateRandomString(1));
-  reminding = zone_manager_->ProcessSingleItem(
+  reminding = zone_manager_->FlushSingleItem(
       buffer, key, value,
       [](uint64_t lba) { EXPECT_EQ(lba, (10UL << 10) + 16); });
 
@@ -67,7 +67,7 @@ TEST_F(ZoneManagerTest, ProcessSingleItemTest) {
   value =
       std::make_shared<IOBuf>(StringUtils::GenerateRandomString(22UL << 10));
   reminding =
-      zone_manager_->ProcessSingleItem(buffer, key, value, [&](uint64_t lba) {
+      zone_manager_->FlushSingleItem(buffer, key, value, [&](uint64_t lba) {
         LOG(INFO, "item flushed");
         EXPECT_EQ(lba, (10UL << 10) + 16 + 6 + 2);
         EXPECT_EQ(key.size(), *reinterpret_cast<uint16_t*>(ptr));
@@ -82,7 +82,7 @@ TEST_F(ZoneManagerTest, ProcessSingleItemTest) {
   value =
       std::make_shared<IOBuf>(StringUtils::GenerateRandomString(64UL << 10));
   reminding =
-      zone_manager_->ProcessSingleItem(buffer, key, value, [&](uint64_t lba) {
+      zone_manager_->FlushSingleItem(buffer, key, value, [&](uint64_t lba) {
         EXPECT_EQ(lba, (10UL << 10) + 16 + 6 + 2 + (22UL << 10) + 16);
         LOG(INFO, "item flushed");
       });

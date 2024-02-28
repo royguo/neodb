@@ -9,10 +9,6 @@
 
 namespace neodb {
 
-#define FLUSH_IO_SIZE (32UL << 10)
-// TODO(Roy Guo) Shall we limit the key size?
-#define MAX_KEY_SIZE (1024)
-
 Status ZoneManager::Append(const std::string& key,
                            std::shared_ptr<IOBuf> value) {
   uint64_t idx = HashUtils::FastHash(key) % options_.writable_buffer_num;
@@ -54,8 +50,8 @@ void ZoneManager::TryFlush() {
   }
 
   // use the `immutable` buffer for further encoding and flushing.
-  std::shared_ptr<IOBuf> encoded_buf = std::make_shared<IOBuf>(FLUSH_IO_SIZE);
-  uint32_t available_sz = FLUSH_IO_SIZE;
+  std::shared_ptr<IOBuf> encoded_buf = std::make_shared<IOBuf>(IO_FLUSH_SIZE);
+  uint32_t available_sz = IO_FLUSH_SIZE;
   auto* ptr = encoded_buf->Buffer();
   auto* cur_ptr = ptr;
 
@@ -64,11 +60,11 @@ void ZoneManager::TryFlush() {
   for (auto& item : *items) {
     // TODO Get current lba write pointer
     // uint64_t current_lba = io_handle_->
-    ProcessSingleItem(encoded_buf, item.first, item.second,
-                      [&lba_vec](uint64_t lba) { lba_vec.push_back(lba); });
+    FlushSingleItem(encoded_buf, item.first, item.second,
+                     [&lba_vec](uint64_t lba) { lba_vec.push_back(lba); });
   }
   // Flush the reminding bytes of the buffer.
-  if (encoded_buf->AvailableSize() < FLUSH_IO_SIZE) {
+  if (encoded_buf->AvailableSize() < IO_FLUSH_SIZE) {
     io_handle_->Append(encoded_buf);
   }
 
@@ -77,10 +73,10 @@ void ZoneManager::TryFlush() {
   // TODO(Roy Guo) Release the immutable buffer and free memory
 }
 
-bool ZoneManager::ProcessSingleItem(const std::shared_ptr<IOBuf>& buf,
-                                    const std::string& key,
-                                    const std::shared_ptr<IOBuf>& value,
-                                    const std::function<void(uint64_t)>& func) {
+bool ZoneManager::FlushSingleItem(const std::shared_ptr<IOBuf>& buf,
+                                   const std::string& key,
+                                   const std::shared_ptr<IOBuf>& value,
+                                   const std::function<void(uint64_t)>& func) {
   assert(key.size() <= MAX_KEY_SIZE);
   // Expected flush LBA for current key value item.
   uint64_t lba = io_handle_->GetWritePointer() + buf->Size();
@@ -136,4 +132,34 @@ bool ZoneManager::ProcessSingleItem(const std::shared_ptr<IOBuf>& buf,
   func(lba);
   return buf->AvailableSize() > 0;
 }
+
+Status ZoneManager::ReadSingleItem(uint64_t offset, std::string* key,
+                                   std::shared_ptr<IOBuf> value) {
+  const int meta_sz = 6;
+  int header_read_size = IO_PAGE_SIZE;
+  uint64_t align = offset % IO_PAGE_SIZE;
+  if (IO_PAGE_SIZE - align < meta_sz) {
+    header_read_size *= 2;
+  }
+  auto header = std::make_shared<IOBuf>(header_read_size);
+  auto s = io_handle_->Read(offset - align, header);
+  if (!s.ok()) {
+    return s;
+  }
+  uint64_t key_sz = *reinterpret_cast<uint16_t*>(header->Buffer() + align);
+  uint64_t value_sz = *reinterpret_cast<uint16_t*>(header->Buffer() + align +
+                                                   2 /* skip key_sz */);
+  uint64_t unaligned_total_sz = align + meta_sz + key_sz + value_sz;
+  uint64_t aligned_total_sz =
+      (unaligned_total_sz + IO_PAGE_SIZE - 1) / IO_PAGE_SIZE * IO_PAGE_SIZE;
+  // Read out all key value data.
+  value = std::make_shared<IOBuf>(aligned_total_sz);
+  s = io_handle_->Read(offset - align, value);
+  if (!s.ok()) {
+    return s;
+  }
+  value->Shrink(align + meta_sz + key_sz, value_sz);
+  return Status::OK();
+}
+
 }  // namespace neodb

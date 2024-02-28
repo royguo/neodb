@@ -20,8 +20,13 @@ class IOHandle {
 
   virtual Status Write(uint64_t offset, std::shared_ptr<IOBuf> data) = 0;
 
-  virtual Status Read(uint64_t offset, uint32_t size,
-                      std::shared_ptr<IOBuf> value) = 0;
+  // Read certain amount of data and append to the data buffer.
+  // The data is pre-allocated, and its free space should be enough.
+  virtual Status ReadAppend(uint64_t offset, uint32_t size,
+                            std::shared_ptr<IOBuf> data) = 0;
+
+  // Read data into the pre-allocated buffer with the size of data capacity.
+  virtual Status Read(uint64_t offset, std::shared_ptr<IOBuf> data) = 0;
 
   virtual Status Append(std::shared_ptr<IOBuf> data) = 0;
 
@@ -69,8 +74,10 @@ class FileIOHandle : public IOHandle {
 
   Status Write(uint64_t offset, std::shared_ptr<IOBuf> data) override;
 
-  Status Read(uint64_t offset, uint32_t size,
-              std::shared_ptr<IOBuf> value) override;
+  Status ReadAppend(uint64_t offset, uint32_t size,
+                    std::shared_ptr<IOBuf> data) override;
+
+  Status Read(uint64_t offset, std::shared_ptr<IOBuf> data) override;
 
   Status Append(std::shared_ptr<IOBuf> data) override;
 

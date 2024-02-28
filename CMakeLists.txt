@@ -9,9 +9,9 @@ OPTION(WITH_TEST "build test cases" ON)
 
 ADD_SUBDIRECTORY(third)
 
-IF(WITH_ASAN)
-  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
-ENDIF()
+IF (WITH_ASAN)
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
+ENDIF ()
 
 # header files
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -26,15 +26,17 @@ ADD_LIBRARY(neodb STATIC ${SOURCE_FILES})
 TARGET_LINK_LIBRARIES(neodb spdlog)
 
 # build neodb test cases
-IF(WITH_TEST)
+IF (WITH_TEST)
+    INCLUDE(CTest)
     ENABLE_TESTING()
-    FOREACH(test_file ${TEST_FILES})
+    FOREACH (test_file ${TEST_FILES})
         GET_FILENAME_COMPONENT(exename ${test_file} NAME_WE)
-        ADD_EXECUTABLE(${CMAKE_PROJECT_NAME}_${exename}${ARTIFACT_SUFFIX} ${test_file})
+        ADD_EXECUTABLE(${CMAKE_PROJECT_NAME}_${exename} ${ARTIFACT_SUFFIX} ${test_file})
         MESSAGE("build tests: ${CMAKE_PROJECT_NAME}_${exename}${ARTIFACT_SUFFIX}")
-        SET_TARGET_PROPERTIES(${CMAKE_PROJECT_NAME}_${exename}${ARTIFACT_SUFFIX}
-            PROPERTIES OUTPUT_NAME ${exename}${ARTIFACT_SUFFIX}
+        SET_TARGET_PROPERTIES(${CMAKE_PROJECT_NAME}_${exename} ${ARTIFACT_SUFFIX}
+                PROPERTIES OUTPUT_NAME ${exename} ${ARTIFACT_SUFFIX}
         )
-        TARGET_LINK_LIBRARIES(${CMAKE_PROJECT_NAME}_${exename}${ARTIFACT_SUFFIX} gtest gtest_main neodb)
-    ENDFOREACH()
+        TARGET_LINK_LIBRARIES(${CMAKE_PROJECT_NAME}_${exename} ${ARTIFACT_SUFFIX} gtest gtest_main neodb)
+        ADD_TEST(NAME ${CMAKE_PROJECT_NAME}_${exename} COMMAND ${CMAKE_PROJECT_NAME}_${exename})
+    ENDFOREACH ()
 ENDIF ()

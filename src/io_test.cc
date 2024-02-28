@@ -43,7 +43,7 @@ TEST_F(IOTest, SingleWriteTest) {
   Status s = io_handle.Write(0, buf);
   EXPECT_TRUE(s.ok());
   buf->Reset();
-  io_handle.Read(0, 10, buf);
+  io_handle.ReadAppend(0, 10, buf);
   EXPECT_EQ(buf->Data(), "1234567890");
   RemoveFile(filename);
 }
@@ -65,7 +65,7 @@ TEST_F(IOTest, MultiWriteTest) {
   // Read & Check
   for (int i = 0; i < 10; ++i) {
     auto buf = std::make_shared<IOBuf>(10UL << 10);
-    io_handle.Read(i * (100UL << 20), 10UL << 10, buf);
+    io_handle.ReadAppend(i * (100UL << 20), 10UL << 10, buf);
     EXPECT_EQ(buf->Data(), values[i]);
   }
 
