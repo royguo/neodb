@@ -4,13 +4,13 @@
 
 #include <atomic>
 #include <condition_variable>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <queue>
-#include <functional>
 #include <vector>
 
-#include "neodb/index.h"
+#include "../index.h"
 #include "neodb/status.h"
 
 namespace neodb {

@@ -3,6 +3,7 @@
 #include <memory>
 #include <utility>
 
+#include "index.h"
 #include "io.h"
 #include "neodb/io_buf.h"
 #include "neodb/options.h"
@@ -13,8 +14,11 @@ namespace neodb {
 
 class ZoneManager {
  public:
-  explicit ZoneManager(DBOptions options, std::unique_ptr<IOHandle> io_handle)
-      : options_(std::move(options)), io_handle_(std::move(io_handle)) {
+  explicit ZoneManager(DBOptions options, std::unique_ptr<IOHandle> io_handle,
+                       const std::shared_ptr<Index>& index)
+      : options_(std::move(options)),
+        io_handle_(std::move(io_handle)),
+        index_(index) {
     for (int i = 0; i < options_.writable_buffer_num; ++i) {
       writable_buffers_.emplace_back(new WriteBuffer());
     }
@@ -38,7 +42,7 @@ class ZoneManager {
 
   void StopFlushWorker() { flush_worker_started_ = false; }
 
-  Status Append(const std::string& key, std::shared_ptr<IOBuf> value);
+  Status Append(const std::string& key, const std::shared_ptr<IOBuf>& value);
 
   // Encode a single key value item into the target buffer. If the target buffer
   // is full, then use `func` as callback to process the buffer. Then continue
@@ -49,10 +53,10 @@ class ZoneManager {
   // @param func Callback if the item is fully appended to the buffer (probably)
   // not yet flushed.
   // @return True if the target buffer has un processed data.
-  bool FlushSingleItem(const std::shared_ptr<IOBuf>& buf,
-                       const std::string& key,
-                       const std::shared_ptr<IOBuf>& value,
-                       const std::function<void(uint64_t append_lba)>&);
+  bool TryFlushSingleItem(const std::shared_ptr<IOBuf>& buf,
+                          const std::string& key,
+                          const std::shared_ptr<IOBuf>& value,
+                          const std::function<void(uint64_t append_lba)>&);
 
   // Read a single key value item from the device
   // @param offset The item's LBA offset on the device, including item meta.
@@ -61,10 +65,16 @@ class ZoneManager {
 
   void TryFlush();
 
+  uint32_t GetWritableBufferNum() const { return writable_buffers_.size(); }
+
+  uint32_t GetImmutableBufferNum() const { return immutable_buffers_.size(); }
+
  private:
   DBOptions options_;
 
   std::unique_ptr<IOHandle> io_handle_;
+
+  std::shared_ptr<Index> index_;
 
   std::vector<std::unique_ptr<WriteBuffer>> writable_buffers_;
   // Each of the write buffer slot need to have a lock.

@@ -10,7 +10,7 @@
 namespace neodb {
 
 Status ZoneManager::Append(const std::string& key,
-                           std::shared_ptr<IOBuf> value) {
+                           const std::shared_ptr<IOBuf>& value) {
   uint64_t idx = HashUtils::FastHash(key) % options_.writable_buffer_num;
   // Each of the WriteBuffer can only be accessed by a single write thread.
   // TODO(Roy Guo) Wait-Free is required in the future.
@@ -58,25 +58,29 @@ void ZoneManager::TryFlush() {
   std::vector<uint64_t> lba_vec;
   auto* items = immutable->GetItems();
   for (auto& item : *items) {
-    // TODO Get current lba write pointer
-    // uint64_t current_lba = io_handle_->
-    FlushSingleItem(encoded_buf, item.first, item.second,
-                    [&lba_vec](uint64_t lba) { lba_vec.push_back(lba); });
+    TryFlushSingleItem(encoded_buf, item.first, item.second,
+                       [&lba_vec](uint64_t lba) { lba_vec.push_back(lba); });
   }
   // Flush the reminding bytes of the buffer.
   if (encoded_buf->AvailableSize() < IO_FLUSH_SIZE) {
     io_handle_->Append(encoded_buf);
   }
 
-  // TODO(Roy Guo) Update related index of the keys
+  // Update related index of the flushed keys
+  for (uint32_t i = 0; i < items->size(); ++i) {
+    auto& item = (*items)[i];
+    uint64_t lba = lba_vec[i];
+    index_->Update(item.first, lba);
+  }
 
-  // TODO(Roy Guo) Release the immutable buffer and free memory
+  // Release the immutable buffer and free memory
+  immutable = nullptr;
 }
 
-bool ZoneManager::FlushSingleItem(const std::shared_ptr<IOBuf>& buf,
-                                  const std::string& key,
-                                  const std::shared_ptr<IOBuf>& value,
-                                  const std::function<void(uint64_t)>& func) {
+bool ZoneManager::TryFlushSingleItem(
+    const std::shared_ptr<IOBuf>& buf, const std::string& key,
+    const std::shared_ptr<IOBuf>& value,
+    const std::function<void(uint64_t)>& func) {
   assert(key.size() <= MAX_KEY_SIZE);
   // Expected flush LBA for current key value item.
   uint64_t lba = io_handle_->GetWritePointer() + buf->Size();

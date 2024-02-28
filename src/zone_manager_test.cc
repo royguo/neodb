@@ -16,10 +16,14 @@ class ZoneManagerTest : public ::testing::Test {
   DBOptions options_;
 
   void SetUp() override {
+    options_.writable_buffer_num = 1;
+    options_.immutable_buffer_num = 1;
+    options_.write_buffer_size = 1UL << 20;
     filename_ =
         FileUtils::GenerateRandomFile("zone_manager_test_file_", 1UL << 30);
     auto io_handle = std::make_unique<FileIOHandle>(filename_);
-    zone_manager_ = new ZoneManager(options_, std::move(io_handle));
+    auto index = std::make_shared<Index>();
+    zone_manager_ = new ZoneManager(options_, std::move(io_handle), index);
   }
 
   void TearDown() override {
@@ -37,7 +41,7 @@ TEST_F(ZoneManagerTest, ProcessSingleItemTest) {
   std::shared_ptr<IOBuf> value =
       std::make_shared<IOBuf>(StringUtils::GenerateRandomString(10UL << 10));
 
-  bool reminding = zone_manager_->FlushSingleItem(
+  bool reminding = zone_manager_->TryFlushSingleItem(
       buffer, key, value, [](uint64_t lba) { EXPECT_EQ(lba, 0); });
 
   // total size = 6 + 10 + 10KB
@@ -51,7 +55,7 @@ TEST_F(ZoneManagerTest, ProcessSingleItemTest) {
   // total size = 6 + 10 + 10KB + 6 + 2
   key = StringUtils::GenerateRandomString(1);
   value = std::make_shared<IOBuf>(StringUtils::GenerateRandomString(1));
-  reminding = zone_manager_->FlushSingleItem(
+  reminding = zone_manager_->TryFlushSingleItem(
       buffer, key, value,
       [](uint64_t lba) { EXPECT_EQ(lba, (10UL << 10) + 16); });
 
@@ -67,7 +71,7 @@ TEST_F(ZoneManagerTest, ProcessSingleItemTest) {
   value =
       std::make_shared<IOBuf>(StringUtils::GenerateRandomString(22UL << 10));
   reminding =
-      zone_manager_->FlushSingleItem(buffer, key, value, [&](uint64_t lba) {
+      zone_manager_->TryFlushSingleItem(buffer, key, value, [&](uint64_t lba) {
         LOG(INFO, "item appended");
         EXPECT_EQ(lba, (10UL << 10) + 16 + 6 + 2);
         EXPECT_EQ(key.size(), *reinterpret_cast<uint16_t*>(ptr));
@@ -82,7 +86,7 @@ TEST_F(ZoneManagerTest, ProcessSingleItemTest) {
   value =
       std::make_shared<IOBuf>(StringUtils::GenerateRandomString(64UL << 10));
   reminding =
-      zone_manager_->FlushSingleItem(buffer, key, value, [&](uint64_t lba) {
+      zone_manager_->TryFlushSingleItem(buffer, key, value, [&](uint64_t lba) {
         EXPECT_EQ(lba, (10UL << 10) + 16 + 6 + 2 + (22UL << 10) + 16);
         LOG(INFO, "item appended");
       });
@@ -90,7 +94,7 @@ TEST_F(ZoneManagerTest, ProcessSingleItemTest) {
   EXPECT_EQ(buffer->Size(), 56);
 }
 
-TEST_F(ZoneManagerTest, WriteAndRestTest) {
+TEST_F(ZoneManagerTest, WriteAndReadTest) {
   std::shared_ptr<IOBuf> buffer = std::make_shared<IOBuf>(32UL << 10);
 
   // Write two items
@@ -98,7 +102,7 @@ TEST_F(ZoneManagerTest, WriteAndRestTest) {
   std::shared_ptr<IOBuf> value1 =
       std::make_shared<IOBuf>(StringUtils::GenerateRandomString(10UL << 10));
   bool reminding =
-      zone_manager_->FlushSingleItem(buffer, key1, value1, [](uint64_t lba) {
+      zone_manager_->TryFlushSingleItem(buffer, key1, value1, [](uint64_t lba) {
         EXPECT_EQ(lba, 0);
         LOG(INFO, "item appended, lba offset: {}", lba);
       });
@@ -108,7 +112,7 @@ TEST_F(ZoneManagerTest, WriteAndRestTest) {
   std::shared_ptr<IOBuf> value2 =
       std::make_shared<IOBuf>(StringUtils::GenerateRandomString(22496));
   reminding =
-      zone_manager_->FlushSingleItem(buffer, key2, value2, [](uint64_t lba) {
+      zone_manager_->TryFlushSingleItem(buffer, key2, value2, [](uint64_t lba) {
         EXPECT_EQ(lba, (10UL << 10) + 16);
         LOG(INFO, "item appended, lba offset: {}", lba);
       });
@@ -126,6 +130,22 @@ TEST_F(ZoneManagerTest, WriteAndRestTest) {
   zone_manager_->ReadSingleItem((10UL << 10) + 16, &read_key2, read_value2);
   EXPECT_EQ(read_key2, key2);
   EXPECT_EQ(read_value2->Data(), value2->Data());
+}
+
+TEST_F(ZoneManagerTest, TryFlushTest) {
+  for (int i = 0; i < 15; ++i) {
+    std::string key = StringUtils::GenerateRandomString(10);
+    auto value =
+        std::make_shared<IOBuf>(StringUtils::GenerateRandomString(100UL << 10));
+    auto s = zone_manager_->Append(key, value);
+    EXPECT_TRUE(s.ok());
+  }
+  EXPECT_EQ(1, zone_manager_->GetImmutableBufferNum());
+  EXPECT_EQ(1, zone_manager_->GetWritableBufferNum());
+
+  // After flush, the immutable buffer should be consumed.
+  zone_manager_->TryFlush();
+  EXPECT_EQ(0, zone_manager_->GetImmutableBufferNum());
 }
 
 int main(int argc, char** argv) {
