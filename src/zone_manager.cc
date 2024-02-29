@@ -24,12 +24,13 @@ Status ZoneManager::Append(const std::string& key,
   }
   // If the WriteBuffer exceeds its capacity, we should create a new empty
   // buffer and seal the old one as immutable buffer.
-  if (write_buffer->IsFull() && !write_buffer->IsImmutable()) {
+  if (write_buffer->IsFull() || write_buffer->IsImmutable()) {
     write_buffer->MarkImmutable();
     {
       std::unique_lock<std::mutex> immutable_lk(immutable_buffer_mtx_);
       immutable_buffers_.emplace_back(std::move(writable_buffers_[idx]));
-      writable_buffers_[idx] = std::make_unique<WriteBuffer>();
+      writable_buffers_[idx] =
+          std::make_unique<WriteBuffer>(options_.write_buffer_size);
       LOG(INFO, "WriteBuffer {} is full, move to immutable buffer list", idx);
     }
   }

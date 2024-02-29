@@ -20,7 +20,8 @@ class ZoneManager {
         io_handle_(std::move(io_handle)),
         index_(index) {
     for (int i = 0; i < options_.writable_buffer_num; ++i) {
-      writable_buffers_.emplace_back(new WriteBuffer());
+      writable_buffers_.emplace_back(
+          new WriteBuffer(options_.write_buffer_size));
     }
     // We cannot `resize` the writable_buffer_mtx_ directly because std::mutex
     // is not movable but the std::vector is.

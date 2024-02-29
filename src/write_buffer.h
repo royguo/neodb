@@ -17,7 +17,8 @@ class WriteBuffer {
   using Item = std::pair<std::string, std::shared_ptr<IOBuf>>;
 
  public:
-  WriteBuffer() = default;
+  explicit WriteBuffer(uint64_t capacity_bytes)
+      : capacity_bytes_(capacity_bytes) {}
 
   WriteBuffer(WriteBuffer&& buffer) noexcept {
     items_ = std::move(buffer.items_);
