@@ -17,6 +17,7 @@ class ZoneManagerTest : public ::testing::Test {
   std::shared_ptr<Index> index_ = std::make_shared<Index>();
 
   void SetUp() override {
+    spdlog::set_level(spdlog::level::debug);
     options_.writable_buffer_num = 1;
     options_.immutable_buffer_num = 1;
     options_.write_buffer_size = 1UL << 20;
@@ -92,9 +93,15 @@ TEST_F(ZoneManagerTest, LargeWriteAndReadTest) {
   std::string key = StringUtils::GenerateRandomString(10);
   std::shared_ptr<IOBuf> value =
       std::make_shared<IOBuf>(StringUtils::GenerateRandomString(100UL << 10));
-  uint64_t lba = zone_manager_->TryFlushSingleItem(buffer, key, value, false);
+  uint64_t lba = zone_manager_->TryFlushSingleItem(buffer, key, value, true);
   EXPECT_EQ(lba, 0);
-  LOG(INFO, "item appended, lba offset: {}", lba);
+  LOG(INFO, "100K item appended, lba offset: {}", lba);
+
+  std::string read_key;
+  std::shared_ptr<IOBuf> read_value;
+  zone_manager_->ReadSingleItem(lba, &read_key, read_value);
+  EXPECT_EQ(key, read_key);
+  EXPECT_EQ(value->Data(), read_value->Data());
 }
 
 TEST_F(ZoneManagerTest, WriteAndReadTest) {
@@ -155,24 +162,23 @@ TEST_F(ZoneManagerTest, TryFlushTest) {
   zone_manager_->TryFlush();
   EXPECT_EQ(0, zone_manager_->GetImmutableBufferNum());
 
-  // Check Key Value
-  //  for (auto& item : data) {
-  //    Index::ValueVariant value;
-  //    auto s = index_->Get(item.first, &value);
-  //    EXPECT_TRUE(s.ok());
-  //    if (std::holds_alternative<Index::MemValue>(value)) {
-  //      EXPECT_EQ(std::get<Index::MemValue>(value)->Data(),
-  //      item.second->Data());
-  //    } else {
-  //      uint64_t lba = std::get<Index::LBAValue>(value);
-  //      std::shared_ptr<IOBuf> ssd_value;
-  //      std::string ssd_key;
-  //      s = zone_manager_->ReadSingleItem(lba, &ssd_key, ssd_value);
-  //      EXPECT_TRUE(s.ok());
-  //      EXPECT_EQ(item.first, ssd_key);
-  //      EXPECT_EQ(ssd_value->Data(), item.second->Data());
-  //    }
-  //  }
+  //   Check Key Value
+  for (auto& item : data) {
+    Index::ValueVariant value;
+    auto s = index_->Get(item.first, &value);
+    EXPECT_TRUE(s.ok());
+    if (std::holds_alternative<Index::MemValue>(value)) {
+      EXPECT_EQ(std::get<Index::MemValue>(value)->Data(), item.second->Data());
+    } else {
+      uint64_t lba = std::get<Index::LBAValue>(value);
+      std::shared_ptr<IOBuf> ssd_value;
+      std::string ssd_key;
+      s = zone_manager_->ReadSingleItem(lba, &ssd_key, ssd_value);
+      EXPECT_TRUE(s.ok());
+      EXPECT_EQ(item.first, ssd_key);
+      EXPECT_EQ(ssd_value->Data(), item.second->Data());
+    }
+  }
 }
 
 int main(int argc, char** argv) {

@@ -31,7 +31,7 @@ Status ZoneManager::Append(const std::string& key,
       immutable_buffers_.emplace_back(std::move(writable_buffers_[idx]));
       writable_buffers_[idx] =
           std::make_unique<WriteBuffer>(options_.write_buffer_size);
-      LOG(INFO, "WriteBuffer {} is full, move to immutable buffer list", idx);
+      LOG(DEBUG, "WriteBuffer {} is full, move to immutable buffer list", idx);
     }
   }
   return Status::OK();
@@ -133,6 +133,7 @@ uint64_t ZoneManager::TryFlushSingleItem(const std::shared_ptr<IOBuf>& buf,
   // If the item is the last element in the WriteBuffer, then we should flush
   // the item to the disk.
   if (force_flush) {
+    LOG(DEBUG, "buffer force flushed, buffer size: {}", buf->Size());
     buf->AlignBufferSize();
     io_handle_->Append(buf);
     buf->Reset();
@@ -154,7 +155,7 @@ Status ZoneManager::ReadSingleItem(uint64_t offset, std::string* key,
     return s;
   }
   uint64_t key_sz = *reinterpret_cast<uint16_t*>(header->Buffer() + align);
-  uint64_t value_sz = *reinterpret_cast<uint16_t*>(header->Buffer() + align +
+  uint32_t value_sz = *reinterpret_cast<uint32_t*>(header->Buffer() + align +
                                                    2 /* skip key_sz */);
   uint64_t unaligned_total_sz = align + meta_sz + key_sz + value_sz;
   uint64_t aligned_total_sz =
