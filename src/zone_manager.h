@@ -51,13 +51,12 @@ class ZoneManager {
   // key value data is fully consumed, then stop the processing. Note that after
   // the processing, the target buffer may still contain some data.
   //
-  // @param func Callback if the item is fully appended to the buffer (probably)
-  // not yet flushed.
-  // @return True if the target buffer has un processed data.
-  bool TryFlushSingleItem(const std::shared_ptr<IOBuf>& buf,
-                          const std::string& key,
-                          const std::shared_ptr<IOBuf>& value,
-                          const std::function<void(uint64_t append_lba)>&);
+  // @param force_flush Flush to disk even if the buffer is not yet full.
+  // @return The flushed item's target LBA (possible not yet flushed to disk)
+  uint64_t TryFlushSingleItem(const std::shared_ptr<IOBuf>& buf,
+                              const std::string& key,
+                              const std::shared_ptr<IOBuf>& value,
+                              bool force_flush = false);
 
   // Read a single key value item from the device
   // @param offset The item's LBA offset on the device, including item meta.

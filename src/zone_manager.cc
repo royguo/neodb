@@ -58,13 +58,11 @@ void ZoneManager::TryFlush() {
 
   std::vector<uint64_t> lba_vec;
   auto* items = immutable->GetItems();
-  for (auto& item : *items) {
-    TryFlushSingleItem(encoded_buf, item.first, item.second,
-                       [&lba_vec](uint64_t lba) { lba_vec.push_back(lba); });
-  }
-  // Flush the reminding bytes of the buffer.
-  if (encoded_buf->AvailableSize() < IO_FLUSH_SIZE) {
-    io_handle_->Append(encoded_buf);
+  for (int i = 0; i < items->size(); ++i) {
+    auto& item = (*items)[i];
+    uint64_t lba = TryFlushSingleItem(encoded_buf, item.first, item.second,
+                                      i == (items->size() - 1));
+    lba_vec.push_back(lba);
   }
 
   // Update related index of the flushed keys
@@ -73,15 +71,12 @@ void ZoneManager::TryFlush() {
     uint64_t lba = lba_vec[i];
     index_->Update(item.first, lba);
   }
-
-  // Release the immutable buffer and free memory
-  immutable = nullptr;
 }
 
-bool ZoneManager::TryFlushSingleItem(
-    const std::shared_ptr<IOBuf>& buf, const std::string& key,
-    const std::shared_ptr<IOBuf>& value,
-    const std::function<void(uint64_t)>& func) {
+uint64_t ZoneManager::TryFlushSingleItem(const std::shared_ptr<IOBuf>& buf,
+                                         const std::string& key,
+                                         const std::shared_ptr<IOBuf>& value,
+                                         bool force_flush) {
   assert(key.size() <= MAX_KEY_SIZE);
   // Expected flush LBA for current key value item.
   uint64_t lba = io_handle_->GetWritePointer() + buf->Size();
@@ -134,8 +129,15 @@ bool ZoneManager::TryFlushSingleItem(
       buf->Reset();
     }
   }
-  func(lba);
-  return buf->AvailableSize() > 0;
+
+  // If the item is the last element in the WriteBuffer, then we should flush
+  // the item to the disk.
+  if (force_flush) {
+    buf->AlignBufferSize();
+    io_handle_->Append(buf);
+    buf->Reset();
+  }
+  return lba;
 }
 
 Status ZoneManager::ReadSingleItem(uint64_t offset, std::string* key,

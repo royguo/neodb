@@ -9,8 +9,7 @@
 #include "neodb/status.h"
 
 namespace neodb {
-void Index::Put(const std::string& key,
-                const neodb::Index::ValueVariant& value) {
+void Index::Put(const std::string& key, const Index::ValueVariant& value) {
   if (std::holds_alternative<LBAValue>(value)) {
     lba_index_.emplace(key, std::get<LBAValue>(value));
   } else {
@@ -18,8 +17,22 @@ void Index::Put(const std::string& key,
   }
 }
 
-void Index::Update(const std::string& key,
-                   const neodb::Index::ValueVariant& value) {
+Status Index::Get(const std::string& key, Index::ValueVariant* value) {
+  auto mem_it = mem_index_.find(key);
+  if (mem_it != mem_index_.end()) {
+    *value = std::get<MemValue>(*mem_it);
+    return Status::OK();
+  }
+
+  auto lba_it = lba_index_.find(key);
+  if (lba_it != lba_index_.end()) {
+    *value = std::get<LBAValue>(*lba_it);
+    return Status::OK();
+  }
+  return Status::NotFound("key not found");
+}
+
+void Index::Update(const std::string& key, const Index::ValueVariant& value) {
   Delete(key);
   Put(key, value);
 }

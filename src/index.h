@@ -11,6 +11,7 @@
 namespace neodb {
 
 class Index {
+ public:
   // Memory index value.
   using MemValue = std::shared_ptr<IOBuf>;
   // LBA index value, colored pointer.
@@ -27,6 +28,8 @@ class Index {
   ~Index() = default;
 
   void Put(const std::string& key, const ValueVariant& value);
+
+  Status Get(const std::string& key, ValueVariant* value);
 
   void Update(const std::string& key, const ValueVariant& value);
 
