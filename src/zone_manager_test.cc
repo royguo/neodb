@@ -11,8 +11,8 @@
 namespace neodb {
 class ZoneManagerTest : public ::testing::Test {
  public:
+  ZoneManager* zone_manager_ = nullptr;
   std::string filename_;
-  ZoneManager* zone_manager_;
   DBOptions options_;
   std::shared_ptr<Index> index_ = std::make_shared<Index>();
 
