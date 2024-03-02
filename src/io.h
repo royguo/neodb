@@ -12,6 +12,7 @@
 #include "neodb/io_buf.h"
 #include "neodb/logger.h"
 #include "neodb/status.h"
+#include "zone.h"
 
 namespace neodb {
 class IOHandle {
@@ -30,9 +31,11 @@ class IOHandle {
 
   virtual Status Append(std::shared_ptr<IOBuf> data) = 0;
 
-  void Seek(uint64_t wp) { wp_ = wp; }
+  virtual std::vector<std::shared_ptr<Zone>> GetDeviceZones() = 0;
 
-  uint64_t GetWritePointer() { return wp_; }
+  virtual void Seek(uint64_t wp) { wp_ = wp; };
+
+  virtual uint64_t GetWritePointer() { return wp_; }
 
  protected:
   // Append write pointer
@@ -45,7 +48,16 @@ class IOHandle {
 
 class FileIOHandle : public IOHandle {
  public:
-  explicit FileIOHandle(std::string filename) : filename_(std::move(filename)) {
+  explicit FileIOHandle(std::string filename, uint64_t file_size,
+                        uint64_t zone_capacity)
+      : filename_(std::move(filename)),
+        file_size_(file_size),
+        zone_capacity_(zone_capacity) {
+    if (filename_.empty() || file_size_ == 0 || zone_capacity_ == 0) {
+      LOG(ERROR, "FileIOHandle init failed, filename: {}, size: {}", filename_,
+          file_size_);
+      abort();
+    }
 #ifdef __APPLE__
     write_fd_ =
         open(filename_.c_str(), O_RDWR | O_SYNC | O_CREAT, S_IRUSR | S_IWUSR);
@@ -81,9 +93,17 @@ class FileIOHandle : public IOHandle {
 
   Status Append(std::shared_ptr<IOBuf> data) override;
 
+  std::vector<std::shared_ptr<Zone>> GetDeviceZones() override;
+
  private:
   int write_fd_;
+
   int read_fd_;
+
   std::string filename_;
+
+  uint64_t file_size_;
+
+  uint64_t zone_capacity_;
 };
 }  // namespace neodb

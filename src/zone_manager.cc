@@ -11,7 +11,7 @@ namespace neodb {
 
 Status ZoneManager::Append(const std::string& key,
                            const std::shared_ptr<IOBuf>& value) {
-  uint64_t idx = HashUtils::FastHash(key) % options_.writable_buffer_num;
+  uint64_t idx = HashUtils::FastHash(key) % options_.writable_buffer_num_;
   // Each of the WriteBuffer can only be accessed by a single write thread.
   // TODO(Roy Guo) Wait-Free is required in the future.
   std::unique_lock<std::mutex> lk(writable_buffer_mtx_[idx]);
@@ -22,6 +22,11 @@ Status ZoneManager::Append(const std::string& key,
         status.msg());
     return status;
   }
+
+  // upsert index item
+  index_->Put(key, value);
+
+  // TODO(Roy Guo) Move to background thread
   // If the WriteBuffer exceeds its capacity, we should create a new empty
   // buffer and seal the old one as immutable buffer.
   if (write_buffer->IsFull() || write_buffer->IsImmutable()) {
@@ -30,7 +35,7 @@ Status ZoneManager::Append(const std::string& key,
       std::unique_lock<std::mutex> immutable_lk(immutable_buffer_mtx_);
       immutable_buffers_.emplace_back(std::move(writable_buffers_[idx]));
       writable_buffers_[idx] =
-          std::make_unique<WriteBuffer>(options_.write_buffer_size);
+          std::make_unique<WriteBuffer>(options_.write_buffer_size_);
       LOG(DEBUG, "WriteBuffer {} is full, move to immutable buffer list", idx);
     }
   }

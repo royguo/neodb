@@ -36,7 +36,7 @@ class IOTest : public ::testing::Test {
 
 TEST_F(IOTest, SingleWriteTest) {
   auto filename = CreateRandomFile(1UL << 30);
-  FileIOHandle io_handle(filename);
+  FileIOHandle io_handle(filename, 1UL << 30, 256UL << 20);
 
   auto buf = std::make_shared<IOBuf>((10));
   buf->Append("1234567890");
@@ -50,7 +50,7 @@ TEST_F(IOTest, SingleWriteTest) {
 
 TEST_F(IOTest, MultiWriteTest) {
   auto filename = CreateRandomFile(1UL << 30);
-  FileIOHandle io_handle(filename);
+  FileIOHandle io_handle(filename, 1UL << 30, 256UL << 20);
   std::vector<std::string> values;
 
   // Write

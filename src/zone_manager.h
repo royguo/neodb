@@ -1,6 +1,8 @@
 #pragma once
+#include <functional>
 #include <list>
 #include <memory>
+#include <queue>
 #include <utility>
 
 #include "index.h"
@@ -9,24 +11,27 @@
 #include "neodb/options.h"
 #include "neodb/status.h"
 #include "write_buffer.h"
+#include "zone.h"
 
 namespace neodb {
 
 class ZoneManager {
  public:
-  explicit ZoneManager(DBOptions options, std::unique_ptr<IOHandle> io_handle,
+  explicit ZoneManager(StoreOptions options,
+                       std::unique_ptr<IOHandle> io_handle,
                        const std::shared_ptr<Index>& index)
       : options_(std::move(options)),
         io_handle_(std::move(io_handle)),
         index_(index) {
-    for (int i = 0; i < options_.writable_buffer_num; ++i) {
+    for (int i = 0; i < options_.writable_buffer_num_; ++i) {
       writable_buffers_.emplace_back(
-          new WriteBuffer(options_.write_buffer_size));
+          new WriteBuffer(options_.write_buffer_size_));
     }
     // We cannot `resize` the writable_buffer_mtx_ directly because std::mutex
     // is not movable but the std::vector is.
-    std::vector<std::mutex> mutexes(options_.writable_buffer_num);
+    std::vector<std::mutex> mutexes(options_.writable_buffer_num_);
     writable_buffer_mtx_ = std::move(mutexes);
+    zones_ = io_handle_->GetDeviceZones();
   }
 
   // Start a dedicated flush worker
@@ -46,10 +51,10 @@ class ZoneManager {
   Status Append(const std::string& key, const std::shared_ptr<IOBuf>& value);
 
   // Encode a single key value item into the target buffer. If the target buffer
-  // is full, then use `func` as callback to process the buffer. Then continue
-  // to encode the rest of the key value data. If the buffer is not full and the
-  // key value data is fully consumed, then stop the processing. Note that after
-  // the processing, the target buffer may still contain some data.
+  // is full,we we will flush to disk. Then continue to encode the rest of the
+  // key value data. If the buffer is not full and the key value data is fully
+  // consumed, then stop the processing. Note that after the processing, the
+  // target buffer may still contain some data.
   //
   // @param force_flush Flush to disk even if the buffer is not yet full.
   // @return The flushed item's target LBA (possible not yet flushed to disk)
@@ -70,11 +75,17 @@ class ZoneManager {
   uint32_t GetImmutableBufferNum() const { return immutable_buffers_.size(); }
 
  private:
-  DBOptions options_;
+  StoreOptions options_;
 
   std::unique_ptr<IOHandle> io_handle_;
 
   std::shared_ptr<Index> index_;
+
+  // Only a few zones could be active for writing.
+  std::vector<std::shared_ptr<Zone>> active_zones_;
+
+  // All physical zones.
+  std::vector<std::shared_ptr<Zone>> zones_;
 
   std::vector<std::unique_ptr<WriteBuffer>> writable_buffers_;
   // Each of the write buffer slot need to have a lock.

@@ -13,17 +13,18 @@ class ZoneManagerTest : public ::testing::Test {
  public:
   ZoneManager* zone_manager_ = nullptr;
   std::string filename_;
-  DBOptions options_;
+  StoreOptions options_;
   std::shared_ptr<Index> index_ = std::make_shared<Index>();
 
   void SetUp() override {
     spdlog::set_level(spdlog::level::debug);
-    options_.writable_buffer_num = 1;
-    options_.immutable_buffer_num = 1;
-    options_.write_buffer_size = 1UL << 20;
+    options_.writable_buffer_num_ = 1;
+    options_.immutable_buffer_num_ = 1;
+    options_.write_buffer_size_ = 1UL << 20;
     filename_ =
         FileUtils::GenerateRandomFile("zone_manager_test_file_", 1UL << 30);
-    auto io_handle = std::make_unique<FileIOHandle>(filename_);
+    auto io_handle =
+        std::make_unique<FileIOHandle>(filename_, 10UL << 30, 256 << 20);
 
     zone_manager_ = new ZoneManager(options_, std::move(io_handle), index_);
   }
@@ -153,7 +154,7 @@ TEST_F(ZoneManagerTest, TryFlushTest) {
   // Check Key Value
   for (auto& item : data) {
     Index::ValueVariant value;
-    auto s = index_->Get(item.first, &value);
+    auto s = index_->Get(item.first, value);
     EXPECT_TRUE(s.ok());
     EXPECT_EQ(std::get<Index::MemValue>(value)->Data(), item.second->Data());
   }
@@ -165,7 +166,7 @@ TEST_F(ZoneManagerTest, TryFlushTest) {
   //   Check Key Value
   for (auto& item : data) {
     Index::ValueVariant value;
-    auto s = index_->Get(item.first, &value);
+    auto s = index_->Get(item.first, value);
     EXPECT_TRUE(s.ok());
     if (std::holds_alternative<Index::MemValue>(value)) {
       EXPECT_EQ(std::get<Index::MemValue>(value)->Data(), item.second->Data());

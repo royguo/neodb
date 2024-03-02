@@ -3,23 +3,35 @@
 #include <string>
 #include <vector>
 
-#include "disk.h"
+#include "index.h"
+#include "io.h"
+#include "neodb/options.h"
 #include "neodb/status.h"
+#include "zone_manager.h"
 
 namespace neodb {
-class StoreOptions {};
 
+// Single device storage engine.
 class Store {
  public:
-  Store(StoreOptions options);
+  explicit Store(StoreOptions options) : options_(options) {
+    auto io_handle = std::make_unique<FileIOHandle>(
+        options.device_path_, options.device_capacity_,
+        options.device_zone_capacity_);
+    zone_manager_ =
+        std::make_unique<ZoneManager>(options, std::move(io_handle), index_);
+  }
 
-  Status Put(const std::string& key);
+  ~Store() = default;
 
-  Status Get();
+  // Put an already exist key will simply overwrite the old one.
+  Status Put(const std::string& key, std::shared_ptr<IOBuf> value);
 
-  bool Exist();
+  Status Get(const std::string& key, std::shared_ptr<IOBuf>& value);
 
  private:
-  std::vector<Disk> disks_;
+  StoreOptions options_;
+  std::shared_ptr<Index> index_;
+  std::unique_ptr<ZoneManager> zone_manager_;
 };
 }  // namespace neodb

@@ -41,4 +41,21 @@ Status FileIOHandle::Append(std::shared_ptr<IOBuf> data) {
   wp_ += data->Size();
   return s;
 }
+
+std::vector<std::shared_ptr<Zone>> FileIOHandle::GetDeviceZones() {
+  std::vector<std::shared_ptr<Zone>> zones;
+  assert(file_size_ > zone_capacity_);
+  uint64_t zone_offset = 0;
+  while (zone_offset < file_size_) {
+    auto zone = std::make_shared<Zone>();
+    zone->id_ = zone_offset / zone_capacity_;
+    zone->offset_ = zone_offset;
+    zone->capacity_bytes_ = zone_capacity_;
+    zone->used_bytes_ = 0;
+    zone->wp_ = zone_offset;
+    zones.push_back(std::move(zone));
+    zone_offset += zone_capacity_;
+  }
+  return std::move(zones);
+}
 }  // namespace neodb

@@ -17,16 +17,16 @@ void Index::Put(const std::string& key, const Index::ValueVariant& value) {
   }
 }
 
-Status Index::Get(const std::string& key, Index::ValueVariant* value) {
+Status Index::Get(const std::string& key, Index::ValueVariant& value) {
   auto mem_it = mem_index_.find(key);
   if (mem_it != mem_index_.end()) {
-    *value = std::get<MemValue>(*mem_it);
+    value = mem_it->second;
     return Status::OK();
   }
 
   auto lba_it = lba_index_.find(key);
   if (lba_it != lba_index_.end()) {
-    *value = std::get<LBAValue>(*lba_it);
+    value = lba_it->second;
     return Status::OK();
   }
   return Status::NotFound("key not found");

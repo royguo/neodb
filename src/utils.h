@@ -55,6 +55,20 @@ class FileUtils {
     }
     return false;
   }
+
+  // Delete all files in target directory
+  static int DeleteFilesByPrefix(const std::string& dir,
+                                 const std::string& prefix) {
+    int total = 0;
+    for (const auto& entry : std::filesystem::directory_iterator(dir)) {
+      if (entry.is_regular_file() &&
+          entry.path().filename().string().find(prefix) == 0) {
+        std::filesystem::remove(entry);
+        total++;
+      }
+    }
+    return total;
+  }
 };
 
 class NumberUtils {
@@ -77,9 +91,7 @@ class NumberUtils {
 class HashUtils {
  public:
   // TODO(Roy Guo) Use a simple hash & fast hash library
-  static uint64_t FastHash(const std::string& str) {
-      return 1;
-  }
+  static uint64_t FastHash(const std::string& str) { return 1; }
 };
 
 class TimeUtils {};
