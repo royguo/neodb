@@ -1,6 +1,6 @@
 #include "codec.h"
 
-#include "neodb/logger.h"
+#include "logger.h"
 #include "write_buffer.h"
 
 namespace neodb {

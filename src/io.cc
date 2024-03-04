@@ -1,6 +1,6 @@
 #include "io.h"
 
-#include "neodb/logger.h"
+#include "logger.h"
 
 namespace neodb {
 Status FileIOHandle::Write(uint64_t offset, std::shared_ptr<IOBuf> data) {

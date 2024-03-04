@@ -11,7 +11,7 @@
 #include <random>
 #include <string>
 
-#include "neodb/logger.h"
+#include "logger.h"
 
 namespace neodb {
 class StringUtils {

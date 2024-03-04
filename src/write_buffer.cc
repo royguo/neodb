@@ -1,7 +1,7 @@
 #include "write_buffer.h"
 
 #include "codec.h"
-#include "neodb/logger.h"
+#include "logger.h"
 
 namespace neodb {
 Status WriteBuffer::Put(const std::string& key,

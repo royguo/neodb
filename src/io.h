@@ -9,8 +9,8 @@
 #include <memory>
 #include <utility>
 
+#include "logger.h"
 #include "neodb/io_buf.h"
-#include "neodb/logger.h"
 #include "neodb/status.h"
 #include "zone.h"
 
