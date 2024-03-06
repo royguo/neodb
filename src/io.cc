@@ -36,9 +36,10 @@ Status FileIOHandle::Read(uint64_t offset, std::shared_ptr<IOBuf> data) {
   return Status::OK();
 }
 
-Status FileIOHandle::Append(std::shared_ptr<IOBuf> data) {
-  auto s = Write(wp_, data);
-  wp_ += data->Size();
+Status FileIOHandle::Append(const std::shared_ptr<Zone>& zone,
+                            std::shared_ptr<IOBuf> data) {
+  auto s = Write(zone->wp_, data);
+  zone->wp_ += data->Size();
   return s;
 }
 

@@ -14,7 +14,7 @@ Status WriteBuffer::Put(const std::string& key,
   used_bytes_ += (key.size() + value->Size());
   // If the capacity is exceeded, we should change this buffer to immutable.
   if (used_bytes_ >= capacity_bytes_) {
-    LOG(DEBUG, "convert to immutable write buffer, used_bytes: {}",
+    LOG(DEBUG, "Convert to immutable write buffer, used_bytes: {}",
         used_bytes_);
     immutable = true;
   }

@@ -22,24 +22,18 @@ class IOHandle {
   virtual Status Write(uint64_t offset, std::shared_ptr<IOBuf> data) = 0;
 
   // Read certain amount of data and append to the data buffer.
-  // The data is pre-allocated, and its free space should be enough.
+  // The data buffer is pre-allocated, and its free space should be enough.
   virtual Status ReadAppend(uint64_t offset, uint32_t size,
                             std::shared_ptr<IOBuf> data) = 0;
 
   // Read data into the pre-allocated buffer with the size of data capacity.
   virtual Status Read(uint64_t offset, std::shared_ptr<IOBuf> data) = 0;
 
-  virtual Status Append(std::shared_ptr<IOBuf> data) = 0;
+  // Append data to the target zone.
+  virtual Status Append(const std::shared_ptr<Zone>& zone,
+                        std::shared_ptr<IOBuf> data) = 0;
 
   virtual std::vector<std::shared_ptr<Zone>> GetDeviceZones() = 0;
-
-  virtual void Seek(uint64_t wp) { wp_ = wp; };
-
-  virtual uint64_t GetWritePointer() { return wp_; }
-
- protected:
-  // Append write pointer
-  uint64_t wp_;
 };
 
 // class S3IOHandle : public IOHandle {};
@@ -91,7 +85,8 @@ class FileIOHandle : public IOHandle {
 
   Status Read(uint64_t offset, std::shared_ptr<IOBuf> data) override;
 
-  Status Append(std::shared_ptr<IOBuf> data) override;
+  Status Append(const std::shared_ptr<Zone>& zone,
+                std::shared_ptr<IOBuf> data) override;
 
   std::vector<std::shared_ptr<Zone>> GetDeviceZones() override;
 

@@ -15,6 +15,8 @@ struct StoreOptions {
 
   uint64_t device_zone_capacity_ = 20UL << 20;
 
+  uint32_t active_zone_number_ = 1;
+
   // Maximum capacity of each write buffer.
   // Total system memory usage:
   //  write_buffer_size_ * (writable_buffer_num_ * immutable_buffer_num_)
@@ -24,6 +26,8 @@ struct StoreOptions {
   uint64_t writable_buffer_num_ = 10;
 
   uint64_t immutable_buffer_num_ = 10;
+
+  bool recover_exist_db_ = false;
 };
 
 struct LoggerOptions {

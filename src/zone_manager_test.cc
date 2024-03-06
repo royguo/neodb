@@ -17,14 +17,17 @@ class ZoneManagerTest : public ::testing::Test {
   std::shared_ptr<Index> index_ = std::make_shared<Index>();
 
   void SetUp() override {
-//    spdlog::set_level(spdlog::level::debug);
+    //    spdlog::set_level(spdlog::level::debug);
     options_.writable_buffer_num_ = 1;
     options_.immutable_buffer_num_ = 1;
     options_.write_buffer_size_ = 1UL << 20;
-    filename_ =
-        FileUtils::GenerateRandomFile("zone_manager_test_file_", 1UL << 30);
-    auto io_handle =
-        std::make_unique<FileIOHandle>(filename_, 10UL << 30, 256 << 20);
+    options_.device_zone_capacity_ = 128UL << 20;
+    options_.device_capacity_ = 5UL << 30;
+    options_.recover_exist_db_ = true;
+    filename_ = FileUtils::GenerateRandomFile("zone_manager_test_file_",
+                                              options_.device_capacity_);
+    auto io_handle = std::make_unique<FileIOHandle>(
+        filename_, options_.device_capacity_, options_.device_zone_capacity_);
 
     zone_manager_ = new ZoneManager(options_, std::move(io_handle), index_);
   }
@@ -36,6 +39,10 @@ class ZoneManagerTest : public ::testing::Test {
 };
 
 TEST_F(ZoneManagerTest, ProcessSingleItemTest) {
+  std::shared_ptr<Zone> zone;
+  auto s = zone_manager_->PickActiveZone(zone);
+  EXPECT_TRUE(s.ok());
+
   // IO flush size set to 32KB
   std::shared_ptr<IOBuf> buffer = std::make_shared<IOBuf>(32UL << 10);
   char* ptr = buffer->Buffer();
@@ -44,8 +51,9 @@ TEST_F(ZoneManagerTest, ProcessSingleItemTest) {
   std::shared_ptr<IOBuf> value =
       std::make_shared<IOBuf>(StringUtils::GenerateRandomString(10UL << 10));
 
-  uint64_t lba = zone_manager_->TryFlushSingleItem(buffer, key, value, false);
-  EXPECT_EQ(lba, 0);
+  uint64_t lba =
+      zone_manager_->TryFlushSingleItem(zone, buffer, key, value, false);
+  EXPECT_EQ(lba, zone->offset_ + 0);
 
   // total size = 6 + 10 + 10KB
   EXPECT_EQ(key.size(), *reinterpret_cast<uint16_t*>(ptr));
@@ -57,8 +65,8 @@ TEST_F(ZoneManagerTest, ProcessSingleItemTest) {
   // total size = 6 + 10 + 10KB + 6 + 2
   key = StringUtils::GenerateRandomString(1);
   value = std::make_shared<IOBuf>(StringUtils::GenerateRandomString(1));
-  lba = zone_manager_->TryFlushSingleItem(buffer, key, value, false);
-  EXPECT_EQ(lba, (10UL << 10) + 16);
+  lba = zone_manager_->TryFlushSingleItem(zone, buffer, key, value, false);
+  EXPECT_EQ(lba, zone->offset_ + (10UL << 10) + 16);
 
   EXPECT_EQ(key.size(), *reinterpret_cast<uint16_t*>(ptr));
   EXPECT_EQ(value->Size(), *reinterpret_cast<uint32_t*>(ptr + 2));
@@ -70,9 +78,9 @@ TEST_F(ZoneManagerTest, ProcessSingleItemTest) {
   key = StringUtils::GenerateRandomString(10);
   value =
       std::make_shared<IOBuf>(StringUtils::GenerateRandomString(22UL << 10));
-  lba = zone_manager_->TryFlushSingleItem(buffer, key, value, false);
+  lba = zone_manager_->TryFlushSingleItem(zone, buffer, key, value, false);
   LOG(INFO, "item appended");
-  EXPECT_EQ(lba, (10UL << 10) + 16 + 6 + 2);
+  EXPECT_EQ(lba, zone->offset_ + (10UL << 10) + 16 + 6 + 2);
   EXPECT_EQ(key.size(), *reinterpret_cast<uint16_t*>(ptr));
   EXPECT_EQ(value->Size(), *reinterpret_cast<uint32_t*>(ptr + 2));
   EXPECT_EQ(key, std::string(ptr + 6, key.size()));
@@ -82,20 +90,25 @@ TEST_F(ZoneManagerTest, ProcessSingleItemTest) {
   key = StringUtils::GenerateRandomString(10);
   value =
       std::make_shared<IOBuf>(StringUtils::GenerateRandomString(64UL << 10));
-  lba = zone_manager_->TryFlushSingleItem(buffer, key, value, false);
-  EXPECT_EQ(lba, (10UL << 10) + 16 + 6 + 2 + (22UL << 10) + 16);
+  lba = zone_manager_->TryFlushSingleItem(zone, buffer, key, value, false);
+  EXPECT_EQ(lba, zone->offset_ + (10UL << 10) + 16 + 6 + 2 + (22UL << 10) + 16);
   LOG(INFO, "item appended");
   EXPECT_EQ(buffer->Size(), 56);
 }
 
 TEST_F(ZoneManagerTest, LargeWriteAndReadTest) {
+  std::shared_ptr<Zone> zone;
+  auto s = zone_manager_->PickActiveZone(zone);
+  EXPECT_TRUE(s.ok());
+
   std::shared_ptr<IOBuf> buffer = std::make_shared<IOBuf>(32UL << 10);
   // The item is larger than the IOBuffer capacity
   std::string key = StringUtils::GenerateRandomString(10);
   std::shared_ptr<IOBuf> value =
       std::make_shared<IOBuf>(StringUtils::GenerateRandomString(100UL << 10));
-  uint64_t lba = zone_manager_->TryFlushSingleItem(buffer, key, value, true);
-  EXPECT_EQ(lba, 0);
+  uint64_t lba =
+      zone_manager_->TryFlushSingleItem(zone, buffer, key, value, true);
+  EXPECT_EQ(lba, zone->offset_ + 0);
   LOG(INFO, "100K item appended, lba offset: {}", lba);
 
   std::string read_key;
@@ -106,33 +119,39 @@ TEST_F(ZoneManagerTest, LargeWriteAndReadTest) {
 }
 
 TEST_F(ZoneManagerTest, WriteAndReadTest) {
+  std::shared_ptr<Zone> zone;
+  auto s = zone_manager_->PickActiveZone(zone);
+  EXPECT_TRUE(s.ok());
+
   std::shared_ptr<IOBuf> buffer = std::make_shared<IOBuf>(32UL << 10);
 
   // Write two items
   std::string key1 = StringUtils::GenerateRandomString(10);
   std::shared_ptr<IOBuf> value1 =
       std::make_shared<IOBuf>(StringUtils::GenerateRandomString(10UL << 10));
-  uint64_t lba = zone_manager_->TryFlushSingleItem(buffer, key1, value1, false);
-  EXPECT_EQ(lba, 0);
+  uint64_t lba =
+      zone_manager_->TryFlushSingleItem(zone, buffer, key1, value1, false);
+  EXPECT_EQ(lba, zone->offset_ + 0);
   LOG(INFO, "item appended, lba offset: {}", lba);
 
   std::string key2 = StringUtils::GenerateRandomString(10);
   std::shared_ptr<IOBuf> value2 =
       std::make_shared<IOBuf>(StringUtils::GenerateRandomString(22496));
-  lba = zone_manager_->TryFlushSingleItem(buffer, key2, value2, false);
-  EXPECT_EQ(lba, (10UL << 10) + 16);
+  lba = zone_manager_->TryFlushSingleItem(zone, buffer, key2, value2, false);
+  EXPECT_EQ(lba, zone->offset_ + (10UL << 10) + 16);
   LOG(INFO, "item appended, lba offset: {}", lba);
 
   // Read them out and verify
   std::shared_ptr<IOBuf> read_value1;
   std::string read_key1;
-  zone_manager_->ReadSingleItem(0, &read_key1, read_value1);
+  zone_manager_->ReadSingleItem(zone->offset_ + 0, &read_key1, read_value1);
   EXPECT_EQ(read_key1, key1);
   EXPECT_EQ(read_value1->Data(), value1->Data());
 
   std::shared_ptr<IOBuf> read_value2;
   std::string read_key2;
-  zone_manager_->ReadSingleItem((10UL << 10) + 16, &read_key2, read_value2);
+  zone_manager_->ReadSingleItem(zone->offset_ + (10UL << 10) + 16, &read_key2,
+                                read_value2);
   EXPECT_EQ(read_key2, key2);
   EXPECT_EQ(read_value2->Data(), value2->Data());
 }
@@ -180,6 +199,26 @@ TEST_F(ZoneManagerTest, TryFlushTest) {
       EXPECT_EQ(ssd_value->Data(), item.second->Data());
     }
   }
+}
+
+TEST_F(ZoneManagerTest, AppendToActiveZoneTest) {
+  // Start the background flush thread first
+  zone_manager_->StartFlushWorker();
+
+  // Then we insert 1GB data to the system
+  std::unordered_map<std::string, std::shared_ptr<IOBuf>> data;
+  for (int i = 0; i < 1024; ++i) {
+    LOG(INFO, "test idx: {}", i);
+    std::string key = StringUtils::GenerateRandomString(10);
+    auto value =
+        std::make_shared<IOBuf>(StringUtils::GenerateRandomString(100UL << 10));
+    auto s = zone_manager_->Append(key, value);
+    EXPECT_TRUE(s.ok());
+    data.emplace(key, value);
+    index_->Put(key, value);
+  }
+
+  zone_manager_->StopFlushWorker();
 }
 
 int main(int argc, char** argv) {

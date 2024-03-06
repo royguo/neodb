@@ -32,13 +32,15 @@ class ZoneManager {
     std::vector<std::mutex> mutexes(options_.writable_buffer_num_);
     writable_buffer_mtx_ = std::move(mutexes);
     zones_ = io_handle_->GetDeviceZones();
+    if (options_.recover_exist_db_) {
+      RecoverZones();
+    }
   }
 
   // Start a dedicated flush worker
   void StartFlushWorker() {
-    flush_worker_started_ = true;
     flush_worker_ = std::thread([&]() {
-      while (flush_worker_started_) {
+      while (!flush_worker_stopped_) {
         TryFlush();
       }
       LOG(INFO, "ZoneManager FlushWorker stopped");
@@ -46,7 +48,10 @@ class ZoneManager {
     LOG(INFO, "ZoneManager FlushWorker started");
   }
 
-  void StopFlushWorker() { flush_worker_started_ = false; }
+  void StopFlushWorker() {
+    flush_worker_stopped_ = true;
+    flush_worker_.join();
+  }
 
   Status Append(const std::string& key, const std::shared_ptr<IOBuf>& value);
 
@@ -58,7 +63,8 @@ class ZoneManager {
   //
   // @param force_flush Flush to disk even if the buffer is not yet full.
   // @return The flushed item's target LBA (possible not yet flushed to disk)
-  uint64_t TryFlushSingleItem(const std::shared_ptr<IOBuf>& buf,
+  uint64_t TryFlushSingleItem(const std::shared_ptr<Zone>& zone,
+                              const std::shared_ptr<IOBuf>& buf,
                               const std::string& key,
                               const std::shared_ptr<IOBuf>& value,
                               bool force_flush = false);
@@ -74,6 +80,15 @@ class ZoneManager {
 
   uint32_t GetImmutableBufferNum() const { return immutable_buffers_.size(); }
 
+  Status PickActiveZone(std::shared_ptr<Zone>& zone);
+
+  // Recover all existing zones.
+  void RecoverZones();
+
+  void WriteZoneHeader(const std::shared_ptr<Zone>& zone);
+
+  void WriteZoneFooter(const std::shared_ptr<Zone>& zone);
+
  private:
   StoreOptions options_;
 
@@ -84,8 +99,13 @@ class ZoneManager {
   // Only a few zones could be active for writing.
   std::vector<std::shared_ptr<Zone>> active_zones_;
 
+  std::vector<std::shared_ptr<Zone>> empty_zones_;
+
   // All physical zones.
   std::vector<std::shared_ptr<Zone>> zones_;
+
+  // Anytime we change any zone list, we should obtain the mutex lock.
+  std::mutex zone_list_mtx_;
 
   std::vector<std::unique_ptr<WriteBuffer>> writable_buffers_;
   // Each of the write buffer slot need to have a lock.
@@ -95,7 +115,7 @@ class ZoneManager {
   std::condition_variable immutable_buffer_cv_;
   std::mutex immutable_buffer_mtx_;
 
-  std::atomic<bool> flush_worker_started_{false};
+  std::atomic<bool> flush_worker_stopped_{true};
 
   std::thread flush_worker_;
 };
