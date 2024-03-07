@@ -4,7 +4,7 @@
 #include <atomic>
 
 namespace neodb {
-enum ZoneState { EMPTY, OPEN, FULL };
+enum ZoneState { EMPTY, OPEN, FULL, OFFLINE };
 class Zone {
  public:
   // TODO

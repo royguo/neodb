@@ -33,15 +33,17 @@ class ZoneManager {
     writable_buffer_mtx_ = std::move(mutexes);
     zones_ = io_handle_->GetDeviceZones();
     if (options_.recover_exist_db_) {
-      RecoverZones();
+      RecoverZoneStates();
     }
+    // After db initialized, we should switch to a new empty zone for writing.
+    SwitchDataZone();
   }
 
   // Start a dedicated flush worker
   void StartFlushWorker() {
     flush_worker_ = std::thread([&]() {
       while (!flush_worker_stopped_) {
-        TryFlush();
+        FlushImmutableBuffers();
       }
       LOG(INFO, "ZoneManager FlushWorker stopped");
     });
@@ -55,6 +57,9 @@ class ZoneManager {
 
   Status Append(const std::string& key, const std::shared_ptr<IOBuf>& value);
 
+  // Obtain an immutable buffer and flush its items to the disk.
+  void FlushImmutableBuffers();
+
   // Encode a single key value item into the target buffer. If the target buffer
   // is full,we we will flush to disk. Then continue to encode the rest of the
   // key value data. If the buffer is not full and the key value data is fully
@@ -63,31 +68,39 @@ class ZoneManager {
   //
   // @param force_flush Flush to disk even if the buffer is not yet full.
   // @return The flushed item's target LBA (possible not yet flushed to disk)
-  uint64_t TryFlushSingleItem(const std::shared_ptr<Zone>& zone,
-                              const std::shared_ptr<IOBuf>& buf,
-                              const std::string& key,
-                              const std::shared_ptr<IOBuf>& value,
-                              bool force_flush = false);
+  uint64_t FlushSingleItem(const std::shared_ptr<IOBuf>& buf,
+                           const std::string& key,
+                           const std::shared_ptr<IOBuf>& value,
+                           bool force_flush = false);
+
+  // Flush a single IO buffer.
+  // The IO buffer holds a list of encoded items and should be aligned before
+  // the flushing.
+  // If the data zone is FULL after the flush, this function should open a new
+  // data zone for further usage.
+  Status FlushIOBufferAndCheckDataZone(std::shared_ptr<IOBuf> buffer);
 
   // Read a single key value item from the device
   // @param offset The item's LBA offset on the device, including item meta.
   Status ReadSingleItem(uint64_t offset, std::string* key,
                         std::shared_ptr<IOBuf>& value);
 
-  void TryFlush();
-
   uint32_t GetWritableBufferNum() const { return writable_buffers_.size(); }
 
   uint32_t GetImmutableBufferNum() const { return immutable_buffers_.size(); }
 
-  Status PickActiveZone(std::shared_ptr<Zone>& zone);
+  // Get a new empty zone from the empty list and use it a the current data
+  // zone.
+  Status SwitchDataZone();
 
   // Recover all existing zones.
-  void RecoverZones();
+  void RecoverZoneStates();
 
   void WriteZoneHeader(const std::shared_ptr<Zone>& zone);
 
   void WriteZoneFooter(const std::shared_ptr<Zone>& zone);
+
+  std::shared_ptr<Zone> GetCurrentDataZone() { return data_zone_; }
 
  private:
   StoreOptions options_;
@@ -96,16 +109,20 @@ class ZoneManager {
 
   std::shared_ptr<Index> index_;
 
-  // Only a few zones could be active for writing.
-  std::vector<std::shared_ptr<Zone>> active_zones_;
+  // Only a single data zone is writable at the same time to fit the append-only
+  // IO pattern.
+  // data_zone_ only takes zone from the empty zone list.
+  std::shared_ptr<Zone> data_zone_;
+
+  // TODO We probably need a meta zone to do some checkpoints.
+  std::shared_ptr<Zone> meta_zone_;
 
   std::vector<std::shared_ptr<Zone>> empty_zones_;
+  std::mutex empty_zones_mtx_;
 
-  // All physical zones.
+  // All physical zones, will be inited on startup and will never change the
+  // list again during the system running.
   std::vector<std::shared_ptr<Zone>> zones_;
-
-  // Anytime we change any zone list, we should obtain the mutex lock.
-  std::mutex zone_list_mtx_;
 
   std::vector<std::unique_ptr<WriteBuffer>> writable_buffers_;
   // Each of the write buffer slot need to have a lock.

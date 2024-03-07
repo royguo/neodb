@@ -47,14 +47,14 @@ Status ZoneManager::Append(const std::string& key,
 }
 
 // Try to pick a immutable write buffer and encode, flush it to disk.
-void ZoneManager::TryFlush() {
-  std::shared_ptr<Zone> zone;
-  auto s = PickActiveZone(zone);
-  if (!s.ok()) {
-    LOG(WARNING, "TryFlush failed, no active zone found, retry later");
-    return;
+void ZoneManager::FlushImmutableBuffers() {
+  if (data_zone_ == nullptr || data_zone_->state_ == ZoneState::FULL) {
+    auto s = SwitchDataZone();
+    if (!s.ok()) {
+      LOG(ERROR, "No available data zone for writing, retry later...");
+      return;
+    }
   }
-
   std::unique_ptr<WriteBuffer> immutable;
   {
     std::unique_lock<std::mutex> lk(immutable_buffer_mtx_);
@@ -79,8 +79,8 @@ void ZoneManager::TryFlush() {
   auto* items = immutable->GetItems();
   for (int i = 0; i < items->size(); ++i) {
     auto& item = (*items)[i];
-    uint64_t lba = TryFlushSingleItem(zone, encoded_buf, item.first,
-                                      item.second, i == (items->size() - 1));
+    uint64_t lba = FlushSingleItem(encoded_buf, item.first, item.second,
+                                   i == (items->size() - 1));
     lba_vec.push_back(lba);
   }
 
@@ -90,17 +90,15 @@ void ZoneManager::TryFlush() {
     uint64_t lba = lba_vec[i];
     index_->Update(item.first, lba);
   }
-  zone->Release();
 }
 
-uint64_t ZoneManager::TryFlushSingleItem(const std::shared_ptr<Zone>& zone,
-                                         const std::shared_ptr<IOBuf>& buf,
-                                         const std::string& key,
-                                         const std::shared_ptr<IOBuf>& value,
-                                         bool force_flush) {
+uint64_t ZoneManager::FlushSingleItem(const std::shared_ptr<IOBuf>& buf,
+                                      const std::string& key,
+                                      const std::shared_ptr<IOBuf>& value,
+                                      bool force_flush) {
   assert(key.size() <= MAX_KEY_SIZE);
   // Expected flush LBA for current key value item.
-  uint64_t lba = zone->wp_ + buf->Size();
+  uint64_t lba = data_zone_->wp_ + buf->Size();
 
   // meta: Key Len 2B + Value Len 4B
   // TODO: add CRC to protect the meta info.
@@ -110,13 +108,12 @@ uint64_t ZoneManager::TryFlushSingleItem(const std::shared_ptr<Zone>& zone,
   // We should process item buffer and then reset it if there's no enough free
   // space for key data and meta
   if (buf->AvailableSize() <= (key_sz + meta_sz)) {
-    LOG(DEBUG, "buffer almost full, size: {}", buf->Size());
+    LOG(DEBUG, "buffer almost full, flush it now, size: {}", buf->Size());
     // skip the last few bytes for next writing as item lba offset.
     lba += (buf->AvailableSize());
-    buf->Reset();
-    io_handle_->Append(zone, buf);
+    FlushIOBufferAndCheckDataZone(buf);
     LOG(DEBUG, "buffer flushed, buffer cap: {}, buffer size: {}, lba: {}",
-        buf->Capacity(), buf->Size(), zone->wp_);
+        buf->Capacity(), buf->Size(), data_zone_->wp_);
   }
 
   // Append item meta (key sz, value sz) and key data
@@ -145,9 +142,8 @@ uint64_t ZoneManager::TryFlushSingleItem(const std::shared_ptr<Zone>& zone,
     // we should reset the buffer.
     if (buf->AvailableSize() == 0) {
       LOG(DEBUG, "buffer flushed, io size: {}, lba = {}", buf->Capacity(),
-          zone->wp_);
-      io_handle_->Append(zone, buf);
-      buf->Reset();
+          data_zone_->wp_);
+      FlushIOBufferAndCheckDataZone(buf);
     }
   }
 
@@ -155,9 +151,7 @@ uint64_t ZoneManager::TryFlushSingleItem(const std::shared_ptr<Zone>& zone,
   // the item to the disk.
   if (force_flush) {
     LOG(DEBUG, "buffer force flushed, buffer size: {}", buf->Size());
-    buf->AlignBufferSize();
-    io_handle_->Append(zone, buf);
-    buf->Reset();
+    FlushIOBufferAndCheckDataZone(buf);
   }
   return lba;
 }
@@ -192,30 +186,20 @@ Status ZoneManager::ReadSingleItem(uint64_t offset, std::string* key,
   return Status::OK();
 }
 
-Status ZoneManager::PickActiveZone(std::shared_ptr<Zone>& zone) {
-  std::unique_lock<std::mutex> lk(zone_list_mtx_);
-  // active a new zone for writing.
-  if (active_zones_.size() < options_.active_zone_number_) {
-    if (empty_zones_.empty()) {
-      return Status::Busy("no empty zone can be active!");
-    }
-    active_zones_.push_back(empty_zones_.back());
-    empty_zones_.pop_back();
-    WriteZoneHeader(active_zones_.back());
+Status ZoneManager::SwitchDataZone() {
+  std::unique_lock<std::mutex> lk(empty_zones_mtx_);
+  if (empty_zones_.empty()) {
+    return Status::Busy();
   }
-
-  for (auto& z : active_zones_) {
-    if (z->Acquire()) {
-      zone = z;
-      return Status::OK();
-    }
-  }
-  return Status::Busy("All active zones are busy!");
+  data_zone_ = empty_zones_.back();
+  empty_zones_.pop_back();
+  return Status::OK();
 }
 
-void ZoneManager::RecoverZones() {
+void ZoneManager::RecoverZoneStates() {
   // TODO (Roy Guo) Read all zone headers & footers to restore all zone status,
   // including all write pointers.
+  std::unique_lock<std::mutex> lk(empty_zones_mtx_);
   for (auto& zone : zones_) {
     if (zone->state_ == ZoneState::EMPTY) {
       empty_zones_.push_back(zone);
@@ -223,6 +207,13 @@ void ZoneManager::RecoverZones() {
           zone->offset_);
     }
   }
+}
+
+Status ZoneManager::FlushIOBufferAndCheckDataZone(std::shared_ptr<IOBuf> buffer) {
+  buffer->AlignBufferSize();
+  io_handle_->Append(data_zone_, buffer);
+  buffer->Reset();
+  return Status::OK();
 }
 
 void ZoneManager::WriteZoneHeader(const std::shared_ptr<Zone>& zone) {
