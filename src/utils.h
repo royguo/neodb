@@ -72,6 +72,7 @@ class FileUtils {
 };
 
 class NumberUtils {
+ public:
   static int FastRand16() {
     // Compute a pseudorandom integer, Output value in range [0, 32767]
     static unsigned int g_seed = 1988;
@@ -85,6 +86,12 @@ class NumberUtils {
     static thread_local std::mt19937_64 gen(rd());
     static thread_local std::uniform_int_distribution<uint64_t> dist;
     return dist(gen);
+  }
+
+  static uint64_t AlignTo(uint64_t num, uint64_t alignment) {
+    if (alignment <= 1) return num;
+    if (num < alignment) return alignment;
+    return (num + alignment - 1) / alignment * alignment;
   }
 };
 

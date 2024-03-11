@@ -68,17 +68,20 @@ class ZoneManager {
   //
   // @param force_flush Flush to disk even if the buffer is not yet full.
   // @return The flushed item's target LBA (possible not yet flushed to disk)
-  uint64_t FlushSingleItem(const std::shared_ptr<IOBuf>& buf,
-                           const std::string& key,
-                           const std::shared_ptr<IOBuf>& value,
-                           bool force_flush = false);
+  uint64_t TryFlushSingleItem(const std::shared_ptr<IOBuf>& buf,
+                              const std::string& key,
+                              const std::shared_ptr<IOBuf>& value,
+                              bool force_flush = false);
 
   // Flush a single IO buffer.
   // The IO buffer holds a list of encoded items and should be aligned before
-  // the flushing.
-  // If the data zone is FULL after the flush, this function should open a new
-  // data zone for further usage.
-  Status FlushIOBufferAndCheckDataZone(std::shared_ptr<IOBuf> buffer);
+  // the flushing. Note that the buffer will be reset to empty for further usage
+  // after the resetting.
+  Status FlushAndResetIOBuffer(const std::shared_ptr<IOBuf>& buffer);
+
+  // Finish the zone means to flush the zone meta and zone footer, reject all
+  // further write requests and mark the zone as FULL.
+  Status FinishCurrentDataZone();
 
   // Read a single key value item from the device
   // @param offset The item's LBA offset on the device, including item meta.
@@ -98,11 +101,14 @@ class ZoneManager {
 
   void WriteZoneHeader(const std::shared_ptr<Zone>& zone);
 
-  void WriteZoneFooter(const std::shared_ptr<Zone>& zone);
+  void GenerateDataZoneFooter(const std::shared_ptr<IOBuf>& buf,
+                              uint64_t meta_offset);
 
   std::shared_ptr<Zone> GetCurrentDataZone() { return data_zone_; }
 
  private:
+  const uint64_t footer_size_ = IO_PAGE_SIZE;
+
   StoreOptions options_;
 
   std::unique_ptr<IOHandle> io_handle_;
@@ -113,6 +119,15 @@ class ZoneManager {
   // IO pattern.
   // data_zone_ only takes zone from the empty zone list.
   std::shared_ptr<Zone> data_zone_;
+
+  // This map holds all the key->LBA items.
+  // Before the data zone closes, we should generate zone meta from this map and
+  // flush it. During the recovery process, we should be able to recovery all
+  // the items from the meta.
+  std::list<std::pair<std::string, uint64_t>> data_zone_key_buffers_;
+  // Accurate size of the data zone's meta, which should be flushed before the
+  // 4KB zone footer.
+  uint64_t expect_data_zone_meta_size_ = 0;
 
   // TODO We probably need a meta zone to do some checkpoints.
   std::shared_ptr<Zone> meta_zone_;
@@ -132,7 +147,7 @@ class ZoneManager {
   std::condition_variable immutable_buffer_cv_;
   std::mutex immutable_buffer_mtx_;
 
-  std::atomic<bool> flush_worker_stopped_{true};
+  std::atomic<bool> flush_worker_stopped_{false};
 
   std::thread flush_worker_;
 };

@@ -6,6 +6,8 @@
 
 #include <memory>
 
+#include "utils.h"
+
 namespace neodb {
 class CodecTest : public ::testing::Test {
  public:
@@ -14,27 +16,33 @@ class CodecTest : public ::testing::Test {
   void TearDown() override {}
 };
 
-TEST_F(CodecTest, EstimateEncodedBufferSize) {
-//  uint32_t current_sz = 0;
-//  // CRC(4B) + KEY LEN(2B) + VALUE LEN(4B) + 100 + 10 = 120
-//  current_sz = Codec::EstimateEncodedBufferSize(current_sz, 10, 100);
-//  EXPECT_EQ(current_sz, 120);
-//  // 10 + 2 + 90 + 4
-//  current_sz = Codec::EstimateEncodedBufferSize(current_sz, 10, 90);
-//  EXPECT_EQ(current_sz, 226);
-//  // 32522 + 4 + 10 + 2 + 226 = 32764
-//  current_sz = Codec::EstimateEncodedBufferSize(current_sz, 10, 32522);
-//  EXPECT_EQ(current_sz, 32764);
-//  // 1 + 1 + 6 + 32764 + 4(next block CRC)= 32776
-//  current_sz = Codec::EstimateEncodedBufferSize(current_sz, 1, 1);
-//  EXPECT_EQ(current_sz, 32776);
-//  // 32KB + 10 + 6 + 32776 + 4 =
-//  current_sz = Codec::EstimateEncodedBufferSize(current_sz, 10, (32UL << 10));
-//  EXPECT_EQ(current_sz, 65564);
-//  // 10*32KB + 10*4 + 6 + 65564 + 10
-//  current_sz =
-//      Codec::EstimateEncodedBufferSize(current_sz, 10, 10 * (32UL << 10));
-//  EXPECT_EQ(current_sz, 10 * (32UL << 10) + 10 * 4 + 6 + 65564 + 10);
+TEST_F(CodecTest, GenerateDataZoneMetaTest) {
+  Codec::DataZoneKeyBuffer key_buffer;
+  key_buffer.emplace_back("a", 1);
+  key_buffer.emplace_back("b", 2);
+  key_buffer.emplace_back("c", 3);
+  std::shared_ptr<IOBuf> meta;
+  uint64_t size = Codec::GenerateDataZoneMeta(key_buffer, meta);
+  EXPECT_GE(size, 4UL << 10);
+
+  std::string large_key = StringUtils::GenerateRandomString(4UL << 10);
+  key_buffer.emplace_back(large_key, 4);
+  size = Codec::GenerateDataZoneMeta(key_buffer, meta);
+  EXPECT_GE(size, 8UL << 10);
+
+  std::vector<std::pair<std::string, uint64_t>> pairs;
+  Codec::DecodeDataZoneMeta(meta->Buffer(), meta->Size(),
+                            [&](const std::string& key, uint64_t lba) {
+                              pairs.emplace_back(key, lba);
+                            });
+  EXPECT_EQ(pairs[0].first, "a");
+  EXPECT_EQ(pairs[0].second, 1);
+  EXPECT_EQ(pairs[1].first, "b");
+  EXPECT_EQ(pairs[1].second, 2);
+  EXPECT_EQ(pairs[2].first, "c");
+  EXPECT_EQ(pairs[2].second, 3);
+  EXPECT_EQ(pairs[3].first, large_key);
+  EXPECT_EQ(pairs[3].second, 4);
 }
 
 int main(int argc, char** argv) {

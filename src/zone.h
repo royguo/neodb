@@ -14,17 +14,17 @@ class Zone {
     return z1.GetGCRank() > z2.GetGCRank();
   }
 
-  // Lock the zone for data writing
-  bool Acquire() { return write_lock_.try_lock(); }
+  uint64_t GetAvailableBytes() {
+    uint64_t used_bytes_ = (wp_ - offset_);
+    return capacity_bytes_ - used_bytes_;
+  }
 
-  // Unlock the zone if the zone was already FULL.
-  void Release() { write_lock_.unlock(); }
+  uint64_t GetUsedBytes() { return wp_ - offset_; }
 
  public:
   uint64_t id_;
   uint64_t offset_;
   uint64_t wp_;
-  uint64_t used_bytes_;
   uint64_t capacity_bytes_;
 
   uint64_t expired_items_;
@@ -34,8 +34,5 @@ class Zone {
   uint64_t finish_time_us_;
 
   ZoneState state_ = ZoneState::EMPTY;
-
- private:
-  std::mutex write_lock_;
 };
 }  // namespace neodb

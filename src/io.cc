@@ -52,7 +52,6 @@ std::vector<std::shared_ptr<Zone>> FileIOHandle::GetDeviceZones() {
     zone->id_ = zone_offset / zone_capacity_;
     zone->offset_ = zone_offset;
     zone->capacity_bytes_ = zone_capacity_;
-    zone->used_bytes_ = 0;
     zone->wp_ = zone_offset;
     zones.push_back(std::move(zone));
     zone_offset += zone_capacity_;
