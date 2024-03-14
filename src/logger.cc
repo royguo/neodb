@@ -45,6 +45,7 @@ void InitLogger(const LoggerOptions& options) {
   logger->set_level(spdlog::level::debug);
 
   spdlog::set_default_logger(logger);
+  spdlog::set_pattern("[%Y-%m-%H T%T.%e][%t][%l][%s:%#] %v");
   spdlog::info("logger initialized, log level: {}", options.level_);
 }
 

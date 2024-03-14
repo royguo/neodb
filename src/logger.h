@@ -7,8 +7,8 @@
 
 namespace neodb {
 #define LOG(level, ...) LOG_##level(__VA_ARGS__)
-#define LOG_DEBUG(...) spdlog::log(spdlog::level::debug, __VA_ARGS__)
-#define LOG_INFO(...) spdlog::log(spdlog::level::info, __VA_ARGS__)
+#define LOG_DEBUG(...) SPDLOG_DEBUG(__VA_ARGS__)
+#define LOG_INFO(...) SPDLOG_INFO(__VA_ARGS__)
 #define LOG_WARNING(...) spdlog::log(spdlog::level::warn, __VA_ARGS__)
 #define LOG_ERROR(...) spdlog::log(spdlog::level::err, __VA_ARGS__)
 

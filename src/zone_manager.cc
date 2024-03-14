@@ -172,8 +172,8 @@ uint64_t ZoneManager::TryFlushSingleItem(const std::shared_ptr<IOBuf>& buf,
     // If we are lucy enough that both value data and target buffer is consumed,
     // we should reset the buffer.
     if (buf->AvailableSize() == 0) {
-      LOG(DEBUG, "buffer flushed, io size: {}, lba = {}", buf->Capacity(),
-          data_zone_->wp_);
+      LOG(DEBUG, "Buffer is full, flushed, io size: {}, lba = {}",
+          buf->Capacity(), data_zone_->wp_);
       FlushAndResetIOBuffer(buf);
     }
   }
@@ -231,9 +231,8 @@ Status ZoneManager::SwitchDataZone() {
 
   // open a new empty zone.
   std::unique_lock<std::mutex> lk(empty_zones_mtx_);
-  if (empty_zones_.empty()) {
-    return Status::Busy();
-  }
+  empty_zones_cv_.wait(lk, [&]() { return !empty_zones_.empty(); });
+
   data_zone_ = empty_zones_.back();
   empty_zones_.pop_back();
   data_zone_->state_ = ZoneState::OPEN;
@@ -241,7 +240,8 @@ Status ZoneManager::SwitchDataZone() {
   return Status::OK();
 }
 
-void ZoneManager::RecoverZoneStates() {
+void ZoneManager::RecoverZoneStates(bool reuse_db) {
+  LOG(INFO, "Start recover zone states on startup... ");
   // TODO (Roy Guo) Read all zone headers & footers to restore all zone status,
   // including all write pointers.
   std::unique_lock<std::mutex> lk(empty_zones_mtx_);
@@ -249,7 +249,7 @@ void ZoneManager::RecoverZoneStates() {
     // TODO read zone footer to recover index
 
     // TODO reset unfinished zone to EMPTY state.
-    
+
     // Push empty zones for further use.
     if (zone->state_ == ZoneState::EMPTY) {
       empty_zones_.push_back(zone);
@@ -278,7 +278,8 @@ Status ZoneManager::FinishCurrentDataZone() {
 
   uint64_t meta_offset = data_zone_->wp_;
   std::shared_ptr<IOBuf> zone_meta;
-  Codec::GenerateDataZoneMeta(data_zone_key_buffers_, zone_meta);
+  uint32_t real_size =
+      Codec::GenerateDataZoneMeta(data_zone_key_buffers_, zone_meta);
 
   assert(data_zone_->wp_ % IO_PAGE_SIZE == 0);
   assert(zone_meta->Size() > 0);
@@ -291,7 +292,8 @@ Status ZoneManager::FinishCurrentDataZone() {
 
   // This buffer includes pre-footer padding.
   auto footer = std::make_shared<IOBuf>(data_zone_->GetAvailableBytes());
-  GenerateDataZoneFooter(footer, meta_offset);
+  Codec::GenerateDataZoneFooter(data_zone_key_buffers_, footer, meta_offset,
+                                real_size);
   s = io_handle_->Append(data_zone_, footer);
   if (!s.ok()) {
     LOG(ERROR, "finish zone failed during flush the zone footer: {}",
@@ -311,18 +313,62 @@ void ZoneManager::WriteZoneHeader(const std::shared_ptr<Zone>& zone) {
   LOG(INFO, "Active new zone, id: {}, offset: {}", zone->id_, zone->offset_);
 }
 
-// Footer:
-// [...]
-// [key count 4B]
-// [meta offset 8B] <--- zone end
-void ZoneManager::GenerateDataZoneFooter(const std::shared_ptr<IOBuf>& buf,
-                                         uint64_t meta_offset) {
-  assert(buf->Capacity() % IO_PAGE_SIZE == 0);
-  assert(buf->Capacity() >= IO_PAGE_SIZE);
-  uint32_t key_cnt = data_zone_key_buffers_.size();
-  buf->AppendZeros(buf->Capacity() - 12);
-  buf->Append((char*)&key_cnt, 4);
-  buf->Append((char*)&meta_offset, 8);
+void ZoneManager::GC() {
+  if (empty_zones_.size() >= options_.gc_threshold_zone_num_) {
+    return;
+  }
+  std::shared_ptr<Zone> target_zone;
+  int score = 0;
+  // TODO Select top zones with highest gc score.
+  for (const auto& zone : zones_) {
+    if (zone->GetGCRank() >= score && zone->state_ == ZoneState::FULL) {
+      score = zone->GetGCRank();
+      target_zone = zone;
+    }
+  }
+
+  if (target_zone == nullptr) {
+    LOG(ERROR, "No candidate zone for GC could be found!");
+    return;
+  }
+
+  // Read zone footer and remove keys from index.
+  std::shared_ptr<IOBuf> meta;
+  ReadDataZoneMeta(target_zone, meta);
+  Codec::DecodeDataZoneMeta(
+      meta->Buffer(), meta->Size(),
+      [&](const std::string& key, uint64_t lba) { index_->Delete(key); });
+
+  // Reset the zone
+  {
+    std::unique_lock<std::mutex> lk(empty_zones_mtx_);
+    io_handle_->ResetZone(target_zone);
+    empty_zones_.push_back(target_zone);
+    empty_zones_cv_.notify_all();
+    LOG(INFO, "Reset a FULL zone to empty, zone id : {}", target_zone->id_);
+  }
+}
+
+void ZoneManager::ReadDataZoneMeta(const std::shared_ptr<Zone>& zone,
+                                   std::shared_ptr<IOBuf>& meta_buf) {
+  std::shared_ptr<IOBuf> footer = std::make_shared<IOBuf>(IO_PAGE_SIZE);
+  // read out the last 4KB footer
+  io_handle_->Read(zone->offset_ + zone->capacity_bytes_ - IO_PAGE_SIZE,
+                   footer);
+  // decode the footer and get the offset of the metadata.
+  uint64_t meta_offset = 0;
+  uint32_t meta_size = 0;
+  Codec::DecodeDataZoneFooter(footer, &meta_offset, &meta_size);
+  assert(meta_offset > 0);
+  assert(meta_size > 0);
+
+  // Read out meta buffer
+  meta_buf =
+      std::make_shared<IOBuf>(NumberUtils::AlignTo(meta_size, IO_PAGE_SIZE));
+  auto s = io_handle_->Read(meta_offset, meta_buf);
+  // Reset the size to its real byte length
+  meta_buf->Resize(meta_size);
+  assert(s.ok());
 }
 
 }  // namespace neodb

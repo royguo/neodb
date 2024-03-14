@@ -11,7 +11,7 @@
 namespace neodb {
 class ZoneManagerTest : public ::testing::Test {
  public:
-  ZoneManager* zone_manager_ = nullptr;
+  std::unique_ptr<ZoneManager> zone_manager_;
   std::string filename_;
   StoreOptions options_;
   std::shared_ptr<Index> index_ = std::make_shared<Index>();
@@ -29,13 +29,11 @@ class ZoneManagerTest : public ::testing::Test {
     auto io_handle = std::make_unique<FileIOHandle>(
         filename_, options_.device_capacity_, options_.device_zone_capacity_);
 
-    zone_manager_ = new ZoneManager(options_, std::move(io_handle), index_);
+    zone_manager_ =
+        std::make_unique<ZoneManager>(options_, std::move(io_handle), index_);
   }
 
-  void TearDown() override {
-    delete zone_manager_;
-    FileUtils::DeleteFile(filename_);
-  }
+  void TearDown() override { FileUtils::DeleteFile(filename_); }
 };
 
 TEST_F(ZoneManagerTest, ProcessSingleItemTest) {
@@ -211,6 +209,37 @@ TEST_F(ZoneManagerTest, AppendToActiveZoneTest) {
   LOG(INFO, "Total written bytes about: {}", written_bytes);
 
   zone_manager_->StopFlushWorker();
+}
+
+TEST_F(ZoneManagerTest, ExceedsDeviceCapacityTest) {
+  // 10 zones in total
+  options_.device_capacity_ = 200UL << 20;
+  options_.device_zone_capacity_ = 20UL << 20;
+  options_.gc_threshold_zone_num_ = 1;
+
+  LOG(INFO, "resize device and zone size....");
+  // reset zone_manager
+  auto io_handle = std::make_unique<FileIOHandle>(
+      filename_, options_.device_capacity_, options_.device_zone_capacity_);
+  zone_manager_ =
+      std::make_unique<ZoneManager>(options_, std::move(io_handle), index_);
+  zone_manager_->StartFlushWorker();
+  zone_manager_->StartGCWorker();
+
+  // write 15 zones in total
+  // 15 * 20MB = 300MB
+  for (uint64_t sz = 0; sz < (300UL << 20); ++sz) {
+    std::string key = StringUtils::GenerateRandomString(10);
+    auto value =
+        std::make_shared<IOBuf>(StringUtils::GenerateRandomString(1UL << 20));
+    auto s = zone_manager_->Append(key, value);
+    EXPECT_TRUE(s.ok());
+    index_->Put(key, value);
+    sz += (value->Size() + 10 + 6);
+  }
+
+  zone_manager_->StopFlushWorker();
+  zone_manager_->StopGCWorker();
 }
 
 int main(int argc, char** argv) {

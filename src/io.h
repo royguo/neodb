@@ -34,6 +34,8 @@ class IOHandle {
                         std::shared_ptr<IOBuf> data) = 0;
 
   virtual std::vector<std::shared_ptr<Zone>> GetDeviceZones() = 0;
+
+  virtual void ResetZone(const std::shared_ptr<Zone>& zone) = 0;
 };
 
 // class S3IOHandle : public IOHandle {};
@@ -89,6 +91,8 @@ class FileIOHandle : public IOHandle {
                 std::shared_ptr<IOBuf> data) override;
 
   std::vector<std::shared_ptr<Zone>> GetDeviceZones() override;
+
+  void ResetZone(const std::shared_ptr<Zone>& zone) override;
 
  private:
   int write_fd_;

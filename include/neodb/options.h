@@ -27,6 +27,9 @@ struct StoreOptions {
 
   uint64_t immutable_buffer_num_ = 10;
 
+  // If empty zone number less than this, we should trigger GC.
+  uint32_t gc_threshold_zone_num_ = 3;
+
   bool recover_exist_db_ = false;
 };
 

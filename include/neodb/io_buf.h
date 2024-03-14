@@ -79,6 +79,8 @@ class IOBuf {
 
   void IncreaseSize(uint32_t sz) { size_ += sz; }
 
+  void Resize(uint32_t sz) { size_ = sz; }
+
   uint32_t Capacity() const { return capacity_; }
 
   std::string Data() { return {buf_, size_}; }

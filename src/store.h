@@ -14,7 +14,7 @@ namespace neodb {
 // Single device storage engine.
 class Store {
  public:
-  explicit Store(StoreOptions options) : options_(options) {
+  explicit Store(const StoreOptions& options) : options_(options) {
     auto io_handle = std::make_unique<FileIOHandle>(
         options.device_path_, options.device_capacity_,
         options.device_zone_capacity_);

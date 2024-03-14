@@ -1,6 +1,7 @@
 #include "io.h"
 
 #include "logger.h"
+#include "utils.h"
 
 namespace neodb {
 Status FileIOHandle::Write(uint64_t offset, std::shared_ptr<IOBuf> data) {
@@ -26,6 +27,7 @@ Status FileIOHandle::ReadAppend(uint64_t offset, uint32_t size,
 }
 
 Status FileIOHandle::Read(uint64_t offset, std::shared_ptr<IOBuf> data) {
+  assert(data->Capacity() % IO_PAGE_SIZE == 0);
   uint64_t ret =
       pread(read_fd_, data->Buffer(), data->Capacity(), int64_t(offset));
   if (ret != data->Capacity()) {
@@ -58,4 +60,10 @@ std::vector<std::shared_ptr<Zone>> FileIOHandle::GetDeviceZones() {
   }
   return std::move(zones);
 }
+
+void FileIOHandle::ResetZone(const std::shared_ptr<Zone>& zone) {
+  zone->state_ = ZoneState::EMPTY;
+  // TODO trim the SSD or filesystem.
+}
+
 }  // namespace neodb

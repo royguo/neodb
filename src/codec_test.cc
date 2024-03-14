@@ -23,12 +23,14 @@ TEST_F(CodecTest, GenerateDataZoneMetaTest) {
   key_buffer.emplace_back("c", 3);
   std::shared_ptr<IOBuf> meta;
   uint64_t size = Codec::GenerateDataZoneMeta(key_buffer, meta);
-  EXPECT_GE(size, 4UL << 10);
+  EXPECT_EQ(meta->Capacity(), 4UL << 10);
+  EXPECT_EQ(size, 33);
 
   std::string large_key = StringUtils::GenerateRandomString(4UL << 10);
   key_buffer.emplace_back(large_key, 4);
   size = Codec::GenerateDataZoneMeta(key_buffer, meta);
-  EXPECT_GE(size, 8UL << 10);
+  EXPECT_EQ(size, (4UL << 10) + 33 + 10);
+  EXPECT_EQ(meta->Capacity(), 8UL << 10);
 
   std::vector<std::pair<std::string, uint64_t>> pairs;
   Codec::DecodeDataZoneMeta(meta->Buffer(), meta->Size(),

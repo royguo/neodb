@@ -16,17 +16,18 @@ namespace neodb {
 //    ...
 //    [key count 4B]
 //    [footer offset 8B]
-uint64_t Codec::GenerateDataZoneMeta(const Codec::DataZoneKeyBuffer& buffer,
+// @return encoded meta size, unaligned real size
+uint32_t Codec::GenerateDataZoneMeta(const Codec::DataZoneKeyBuffer& buffer,
                                      std::shared_ptr<IOBuf>& meta) {
-  uint64_t size = 0;
+  uint64_t capacity = 0;
   for (auto& pair : buffer) {
-    size += (2 /* key len */ + 8 /* lba */ + pair.first.size());
+    capacity += (2 /* key len */ + 8 /* lba */ + pair.first.size());
   }
-  // align to IO_PAGE_SIZE.
-  size = (size + IO_PAGE_SIZE - 1) / IO_PAGE_SIZE * IO_PAGE_SIZE;
-  assert(size > 0);
+  // Align to IO_PAGE_SIZE.
+  capacity = (capacity + IO_PAGE_SIZE - 1) / IO_PAGE_SIZE * IO_PAGE_SIZE;
+  assert(capacity > 0);
   // init new space for the metadata.
-  meta = std::make_shared<IOBuf>(size);
+  meta = std::make_shared<IOBuf>(capacity);
   char* ptr = meta->Buffer();
 
   // Copy all items to the meta buffer.
@@ -39,10 +40,12 @@ uint64_t Codec::GenerateDataZoneMeta(const Codec::DataZoneKeyBuffer& buffer,
     memcpy(ptr + 10, item.first.data(), item.first.size());
     ptr += (10 + item.first.size());
   }
-  meta->IncreaseSize(size);
-  return NumberUtils::AlignTo(ptr - meta->Buffer(), IO_PAGE_SIZE);
+  meta->IncreaseSize(capacity);
+  // return the real size
+  return ptr - meta->Buffer();
 }
 
+// TODO check CRC
 void Codec::DecodeDataZoneMeta(
     const char* meta_buffer, uint32_t buffer_size,
     const std::function<void(const std::string&, uint64_t)>& cb) {
@@ -56,4 +59,30 @@ void Codec::DecodeDataZoneMeta(
     ptr += (10 + key_len);
   }
 }
+
+// Footer:
+// [...]
+// [key count 4B]
+// [meta total size 4B]
+// [meta offset 8B] <--- zone end
+// @param meta_bytes Actual un-aligned buffer size.
+void Codec::GenerateDataZoneFooter(const Codec::DataZoneKeyBuffer& buffer,
+                                   const std::shared_ptr<IOBuf>& buf,
+                                   uint64_t meta_offset, uint32_t meta_bytes) {
+  assert(buf->Capacity() % IO_PAGE_SIZE == 0);
+  assert(buf->Capacity() >= IO_PAGE_SIZE);
+  uint32_t key_cnt = buffer.size();
+  buf->AppendZeros(buf->Capacity() - 16);
+  buf->Append((char*)&key_cnt, 4);
+  buf->Append((char*)&meta_bytes, 4);
+  buf->Append((char*)&meta_offset, 8);
+}
+
+void Codec::DecodeDataZoneFooter(const std::shared_ptr<IOBuf>& footer_buf,
+                                 uint64_t* meta_offset, uint32_t* meta_size) {
+  char* ptr = footer_buf->Buffer();
+  *meta_offset = *reinterpret_cast<uint64_t*>(ptr + IO_PAGE_SIZE - 8);
+  *meta_size = *reinterpret_cast<uint32_t*>(ptr + IO_PAGE_SIZE - 12);
+}
+
 }  // namespace neodb
