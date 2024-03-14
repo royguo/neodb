@@ -6,6 +6,12 @@
 
 namespace neodb {
 
+struct StoreOptions;
+
+struct DBOptions {
+  std::vector<StoreOptions> store_options_list_;
+};
+
 // The options will be loaded on system start.
 // StoreOptions represents a single device's options.
 struct StoreOptions {
@@ -37,7 +43,7 @@ struct LoggerOptions {
   bool console_log_ = true;
   bool file_log_ = false;
   std::filesystem::path log_path_;
-  std::string level_ = "debug";
+  std::string level_ = "info";
   uint32_t rotation_size_m_ = 1000;
   uint32_t max_age_days_ = 7;
   uint32_t max_backups_ = 3;

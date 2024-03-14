@@ -276,6 +276,7 @@ Status ZoneManager::FinishCurrentDataZone() {
     return Status::IOError("No available data zone, finish zone skipped.");
   }
 
+  LOG(INFO, "Finishing current zone, id : {}", data_zone_->id_);
   uint64_t meta_offset = data_zone_->wp_;
   std::shared_ptr<IOBuf> zone_meta;
   uint32_t real_size =
@@ -292,8 +293,8 @@ Status ZoneManager::FinishCurrentDataZone() {
 
   // This buffer includes pre-footer padding.
   auto footer = std::make_shared<IOBuf>(data_zone_->GetAvailableBytes());
-  Codec::GenerateDataZoneFooter(data_zone_key_buffers_, footer, meta_offset,
-                                real_size);
+  Codec::EncodeDataZoneFooter(data_zone_key_buffers_, footer, meta_offset,
+                              real_size);
   s = io_handle_->Append(data_zone_, footer);
   if (!s.ok()) {
     LOG(ERROR, "finish zone failed during flush the zone footer: {}",
@@ -305,12 +306,6 @@ Status ZoneManager::FinishCurrentDataZone() {
   data_zone_->state_ = ZoneState::FULL;
   LOG(INFO, "zone finished success, id : {}", data_zone_->id_);
   return Status::OK();
-}
-
-void ZoneManager::WriteZoneHeader(const std::shared_ptr<Zone>& zone) {
-  // TODO implement
-  zone->state_ = ZoneState::OPEN;
-  LOG(INFO, "Active new zone, id: {}, offset: {}", zone->id_, zone->offset_);
 }
 
 void ZoneManager::GC() {
@@ -333,6 +328,8 @@ void ZoneManager::GC() {
   }
 
   // Read zone footer and remove keys from index.
+  LOG(INFO, "Decoding a zone meta for GC, id : {}, score: {}", target_zone->id_,
+      target_zone->GetGCRank());
   std::shared_ptr<IOBuf> meta;
   ReadDataZoneMeta(target_zone, meta);
   Codec::DecodeDataZoneMeta(

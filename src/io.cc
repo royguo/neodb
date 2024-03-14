@@ -63,7 +63,19 @@ std::vector<std::shared_ptr<Zone>> FileIOHandle::GetDeviceZones() {
 
 void FileIOHandle::ResetZone(const std::shared_ptr<Zone>& zone) {
   zone->state_ = ZoneState::EMPTY;
-  // TODO trim the SSD or filesystem.
+  Trim(write_fd_, zone->wp_, zone->capacity_bytes_);
+}
+
+void FileIOHandle::Trim(int fd, uint64_t offset, uint64_t sz) {
+#ifndef __APPLE__
+  if (fstrim(fd, offset, sz) == -1) {
+    LOG(ERROR, "fstrim failed, offset: {}, length: {}, error: {}", offset, sz,
+        std::strerror(errno));
+    return;
+  }
+#else
+
+#endif
 }
 
 }  // namespace neodb

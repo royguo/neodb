@@ -4,4 +4,3 @@ BasedOnStyle: Google
 AccessModifierOffset: -1
 DerivePointerAlignment: false
 PointerAlignment: Left
-

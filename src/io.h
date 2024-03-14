@@ -1,5 +1,8 @@
 #pragma once
 #include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -36,6 +39,8 @@ class IOHandle {
   virtual std::vector<std::shared_ptr<Zone>> GetDeviceZones() = 0;
 
   virtual void ResetZone(const std::shared_ptr<Zone>& zone) = 0;
+
+  virtual void Trim(int fd, uint64_t offset, uint64_t sz) = 0;
 };
 
 // class S3IOHandle : public IOHandle {};
@@ -93,6 +98,8 @@ class FileIOHandle : public IOHandle {
   std::vector<std::shared_ptr<Zone>> GetDeviceZones() override;
 
   void ResetZone(const std::shared_ptr<Zone>& zone) override;
+
+  void Trim(int fd, uint64_t offset, uint64_t sz) override;
 
  private:
   int write_fd_;

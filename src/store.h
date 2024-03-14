@@ -20,9 +20,14 @@ class Store {
         options.device_zone_capacity_);
     zone_manager_ =
         std::make_unique<ZoneManager>(options, std::move(io_handle), index_);
+    zone_manager_->StartFlushWorker();
+    zone_manager_->StartGCWorker();
   }
 
-  ~Store() = default;
+  ~Store() {
+    zone_manager_->StopFlushWorker();
+    zone_manager_->StopGCWorker();
+  }
 
   // Put an already exist key will simply overwrite the old one.
   Status Put(const std::string& key, std::shared_ptr<IOBuf> value);

@@ -29,7 +29,7 @@ class Codec {
       const std::function<void(const std::string& key, uint64_t lba)>& cb);
 
   // @param meta_bytes real byte length of the meta data.
-  static void GenerateDataZoneFooter(const DataZoneKeyBuffer& buffer,
+  static void EncodeDataZoneFooter(const Codec::DataZoneKeyBuffer& buffer,
                                      const std::shared_ptr<IOBuf>& buf,
                                      uint64_t meta_offset, uint32_t meta_bytes);
 

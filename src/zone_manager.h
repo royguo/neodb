@@ -119,8 +119,6 @@ class ZoneManager {
   // Select a few zones for GC.
   void GC();
 
-  void WriteZoneHeader(const std::shared_ptr<Zone>& zone);
-
   // Read data zone's footer and then get the meta buffer.
   void ReadDataZoneMeta(const std::shared_ptr<Zone>& zone,
                         std::shared_ptr<IOBuf>& meta_buf);

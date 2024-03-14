@@ -33,13 +33,16 @@ uint32_t Codec::GenerateDataZoneMeta(const Codec::DataZoneKeyBuffer& buffer,
   // Copy all items to the meta buffer.
   // pair: key -> lba
   // TODO(Roy Guo) Compression is nice to have.
+  uint32_t key_cnt = 0;
   for (auto& item : buffer) {
     uint16_t key_len = item.first.size();
     memcpy(ptr, &key_len, 2);
     memcpy(ptr + 2, &(item.second), 8);
     memcpy(ptr + 10, item.first.data(), item.first.size());
     ptr += (10 + item.first.size());
+    key_cnt++;
   }
+  LOG(INFO, "Encode data zone meta, key cnt: {}", key_cnt);
   meta->IncreaseSize(capacity);
   // return the real size
   return ptr - meta->Buffer();
@@ -51,13 +54,16 @@ void Codec::DecodeDataZoneMeta(
     const std::function<void(const std::string&, uint64_t)>& cb) {
   assert(buffer_size > 0);
   const char* ptr = meta_buffer;
+  uint32_t key_cnt = 0;
   while (ptr - meta_buffer < buffer_size) {
     uint16_t key_len = *reinterpret_cast<const uint16_t*>(ptr);
     uint64_t lba = *reinterpret_cast<const uint64_t*>(ptr + 2);
     std::string key = std::string(ptr + 10, key_len);
     cb(key, lba);
     ptr += (10 + key_len);
+    key_cnt++;
   }
+  LOG(INFO, "Decode data zone meta, key number: {} ", key_cnt);
 }
 
 // Footer:
@@ -66,9 +72,9 @@ void Codec::DecodeDataZoneMeta(
 // [meta total size 4B]
 // [meta offset 8B] <--- zone end
 // @param meta_bytes Actual un-aligned buffer size.
-void Codec::GenerateDataZoneFooter(const Codec::DataZoneKeyBuffer& buffer,
-                                   const std::shared_ptr<IOBuf>& buf,
-                                   uint64_t meta_offset, uint32_t meta_bytes) {
+void Codec::EncodeDataZoneFooter(const Codec::DataZoneKeyBuffer& buffer,
+                                 const std::shared_ptr<IOBuf>& buf,
+                                 uint64_t meta_offset, uint32_t meta_bytes) {
   assert(buf->Capacity() % IO_PAGE_SIZE == 0);
   assert(buf->Capacity() >= IO_PAGE_SIZE);
   uint32_t key_cnt = buffer.size();

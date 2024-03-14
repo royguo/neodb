@@ -213,7 +213,7 @@ TEST_F(ZoneManagerTest, AppendToActiveZoneTest) {
 
 TEST_F(ZoneManagerTest, ExceedsDeviceCapacityTest) {
   // 10 zones in total
-  options_.device_capacity_ = 200UL << 20;
+  options_.device_capacity_ = 100UL << 20;
   options_.device_zone_capacity_ = 20UL << 20;
   options_.gc_threshold_zone_num_ = 1;
 
@@ -226,9 +226,8 @@ TEST_F(ZoneManagerTest, ExceedsDeviceCapacityTest) {
   zone_manager_->StartFlushWorker();
   zone_manager_->StartGCWorker();
 
-  // write 15 zones in total
-  // 15 * 20MB = 300MB
-  for (uint64_t sz = 0; sz < (300UL << 20); ++sz) {
+  // write 10 zones in total will trigger GC, about 200MB
+  for (uint64_t sz = 0; sz < (200UL << 20); ++sz) {
     std::string key = StringUtils::GenerateRandomString(10);
     auto value =
         std::make_shared<IOBuf>(StringUtils::GenerateRandomString(1UL << 20));
