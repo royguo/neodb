@@ -297,8 +297,10 @@ Status ZoneManager::FinishCurrentDataZone() {
                               real_size);
   s = io_handle_->Append(data_zone_, footer);
   if (!s.ok()) {
-    LOG(ERROR, "finish zone failed during flush the zone footer: {}",
-        std::strerror(errno));
+    LOG(ERROR,
+        "finish zone failed during flush the zone footer, zone id: {}, "
+        "meta_offset: {}, real_size: {}, msg: {}",
+        data_zone_->id_, meta_offset, real_size, std::strerror(errno));
     return s;
   }
 

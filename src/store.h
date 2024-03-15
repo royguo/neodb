@@ -18,6 +18,7 @@ class Store {
     auto io_handle = std::make_unique<FileIOHandle>(
         options.device_path_, options.device_capacity_,
         options.device_zone_capacity_);
+    index_ = std::make_shared<Index>();
     zone_manager_ =
         std::make_unique<ZoneManager>(options, std::move(io_handle), index_);
     zone_manager_->StartFlushWorker();
@@ -30,7 +31,7 @@ class Store {
   }
 
   // Put an already exist key will simply overwrite the old one.
-  Status Put(const std::string& key, std::shared_ptr<IOBuf> value);
+  Status Put(const std::string& key, const std::shared_ptr<IOBuf>& value);
 
   Status Get(const std::string& key, std::shared_ptr<IOBuf>& value);
 

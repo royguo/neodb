@@ -63,6 +63,7 @@ std::vector<std::shared_ptr<Zone>> FileIOHandle::GetDeviceZones() {
 
 void FileIOHandle::ResetZone(const std::shared_ptr<Zone>& zone) {
   zone->state_ = ZoneState::EMPTY;
+  zone->wp_ = zone->offset_;
   Trim(write_fd_, zone->wp_, zone->capacity_bytes_);
 }
 

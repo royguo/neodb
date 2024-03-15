@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include <utility>
 
 namespace neodb {
 class Status {
@@ -26,8 +27,10 @@ class Status {
   }
 
  public:
-  Status(Code code) : code_(code) {}
-  Status(Code code, const std::string& msg) : code_(code), msg_(msg) {}
+  explicit Status(Code code) : code_(code) {}
+  Status(Code code, std::string  msg) : code_(code), msg_(std::move(msg)) {}
+
+  Code code() { return code_; }
 
   bool ok() { return code_ == kOK; }
 

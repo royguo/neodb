@@ -1,9 +1,8 @@
 #include "store.h"
 
 namespace neodb {
-Status Store::Put(const std::string& key, std::shared_ptr<IOBuf> value) {
-  zone_manager_->Append(key, value);
-  return Status::OK();
+Status Store::Put(const std::string& key, const std::shared_ptr<IOBuf>& value) {
+  return zone_manager_->Append(key, value);
 }
 
 Status Store::Get(const std::string& key, std::shared_ptr<IOBuf>& value) {

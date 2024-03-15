@@ -71,7 +71,7 @@ void Codec::DecodeDataZoneMeta(
 // [key count 4B]
 // [meta total size 4B]
 // [meta offset 8B] <--- zone end
-// @param meta_bytes Actual un-aligned buffer size.
+// @param meta_bytes Real un-aligned buffer size.
 void Codec::EncodeDataZoneFooter(const Codec::DataZoneKeyBuffer& buffer,
                                  const std::shared_ptr<IOBuf>& buf,
                                  uint64_t meta_offset, uint32_t meta_bytes) {
