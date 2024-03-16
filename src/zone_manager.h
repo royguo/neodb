@@ -2,6 +2,7 @@
 #include <functional>
 #include <list>
 #include <memory>
+#include <numeric>
 #include <queue>
 #include <utility>
 
@@ -40,7 +41,20 @@ class ZoneManager {
       while (!flush_worker_stopped_ || !immutable_buffers_.empty()) {
         FlushImmutableBuffers();
       }
-      LOG(INFO, "ZoneManager flush worker stopped");
+      // When the thread is about to stop, we should flush all immutable buffers.
+      for (auto& buffer : writable_buffers_) {
+        if (!buffer->GetItems()->empty()) {
+          buffer->MarkImmutable();
+          immutable_buffers_.emplace_back(std::move(buffer));
+        }
+      }
+      // Flush all reminding data and finish the last zone.
+      while (!immutable_buffers_.empty()) {
+        FlushImmutableBuffers();
+      }
+      FinishCurrentDataZone();
+      LOG(INFO, "ZoneManager flush worker stopped, immutable buffers {}, writable buffers: {}",
+          immutable_buffers_.size(), writable_buffers_.size());
     });
     LOG(INFO, "ZoneManager flush worker started");
   }
