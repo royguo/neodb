@@ -9,8 +9,7 @@
 
 namespace neodb {
 
-Status ZoneManager::Append(const std::string& key,
-                           const std::shared_ptr<IOBuf>& value) {
+Status ZoneManager::Append(const std::string& key, const std::shared_ptr<IOBuf>& value) {
   uint64_t idx = HashUtils::FastHash(key) % options_.writable_buffer_num_;
   // Each of the WriteBuffer can only be accessed by a single write thread.
   // TODO(Roy Guo) Wait-Free is required in the future.
@@ -18,8 +17,7 @@ Status ZoneManager::Append(const std::string& key,
   auto& write_buffer = writable_buffers_[idx];
   auto status = write_buffer->Put(key, value);
   if (!status.ok()) {
-    LOG(ERROR, "WriteBuffer {} put failed, key : {}, msg: {}", idx, key,
-        status.msg());
+    LOG(ERROR, "WriteBuffer {} put failed, key : {}, msg: {}", idx, key, status.msg());
     return status;
   }
 
@@ -32,13 +30,15 @@ Status ZoneManager::Append(const std::string& key,
   if (write_buffer->IsFull() || write_buffer->IsImmutable()) {
     write_buffer->MarkImmutable();
     {
+      // If the immutable buffer exceeds limit, we should wait.
       std::unique_lock<std::mutex> immutable_lk(immutable_buffer_mtx_);
+      immutable_buffer_cv_.wait(immutable_lk, [&]() {
+        return immutable_buffers_.size() < options_.immutable_buffer_num_;
+      });
       immutable_buffers_.emplace_back(std::move(writable_buffers_[idx]));
-      writable_buffers_[idx] =
-          std::make_unique<WriteBuffer>(options_.write_buffer_size_);
+      writable_buffers_[idx] = std::make_unique<WriteBuffer>(options_.write_buffer_size_);
       LOG(DEBUG,
-          "WriteBuffer {} is full, move to immutable buffer list, total "
-          "immutable buffer num: {}",
+          "WriteBuffer {} is full, move to immutable buffer list, total immutable buffer num: {}",
           idx, immutable_buffers_.size());
     }
     immutable_buffer_cv_.notify_all();
@@ -58,9 +58,8 @@ void ZoneManager::FlushImmutableBuffers() {
   std::unique_ptr<WriteBuffer> immutable;
   {
     std::unique_lock<std::mutex> lk(immutable_buffer_mtx_);
-    immutable_buffer_cv_.wait_for(lk, std::chrono::seconds(1), [&]() {
-      return !immutable_buffers_.empty();
-    });
+    immutable_buffer_cv_.wait_for(lk, std::chrono::seconds(1),
+                                  [&]() { return !immutable_buffers_.empty(); });
 
     if (immutable_buffers_.empty()) {
       return;
@@ -69,9 +68,9 @@ void ZoneManager::FlushImmutableBuffers() {
     // steal one immutable buffer out of the list
     immutable = std::move(immutable_buffers_.front());
     immutable_buffers_.pop_front();
-    LOG(DEBUG,
-        "Take immutable buffer for flush success, immutable buffer size: {}",
+    LOG(DEBUG, "Take immutable buffer for flush success, immutable buffer size: {}",
         immutable_buffers_.size());
+    immutable_buffer_cv_.notify_one();
   }
 
   // use the `immutable` buffer for further encoding and flushing.
@@ -86,18 +85,15 @@ void ZoneManager::FlushImmutableBuffers() {
     auto& item = (*items)[i];
 
     // Check whether current data zone can hold the next item.
-    uint64_t meta_size =
-        NumberUtils::AlignTo(expect_data_zone_meta_size_, IO_PAGE_SIZE);
+    uint64_t meta_size = NumberUtils::AlignTo(expect_data_zone_meta_size_, IO_PAGE_SIZE);
     // IO_FLUSH_SIZE + MAX_KEY_SIZE + IO_PAGE_SIZE should be enough to hold the
     // current buffer and next item's key and related meta. So if the free space
     // is less, we should switch to another data zone.
     uint64_t max_cur_buffer_size = IO_FLUSH_SIZE;
     // key size + value size + max possible alignment size
-    uint64_t max_next_item_encoded_size =
-        MAX_KEY_SIZE + item.second->Size() + IO_PAGE_SIZE;
-    if (data_zone_->GetAvailableBytes() <= meta_size + footer_size_ +
-                                               max_cur_buffer_size +
-                                               max_next_item_encoded_size) {
+    uint64_t max_next_item_encoded_size = MAX_KEY_SIZE + item.second->Size() + IO_PAGE_SIZE;
+    if (data_zone_->GetAvailableBytes() <=
+        meta_size + footer_size_ + max_cur_buffer_size + max_next_item_encoded_size) {
       // before switch to new zone, we should flush the current buffer because
       // the related LBA were already calculated.
       FlushAndResetIOBuffer(encoded_buf);
@@ -108,8 +104,8 @@ void ZoneManager::FlushImmutableBuffers() {
     // Continue to flush next item to the new data zone.
     // Note that the flush may not flush the data into disk but only flush to
     // the IO buffer for batch processing.
-    uint64_t lba = TryFlushSingleItem(encoded_buf, item.first, item.second,
-                                      i == (items->size() - 1));
+    uint64_t lba =
+        TryFlushSingleItem(encoded_buf, item.first, item.second, i == (items->size() - 1));
     lba_vec.push_back(lba);
     // Buffer the flushed key & lba and flush to the footer before zone close.
     data_zone_key_buffers_.emplace_back(item.first, lba);
@@ -123,10 +119,8 @@ void ZoneManager::FlushImmutableBuffers() {
   }
 }
 
-uint64_t ZoneManager::TryFlushSingleItem(const std::shared_ptr<IOBuf>& buf,
-                                         const std::string& key,
-                                         const std::shared_ptr<IOBuf>& value,
-                                         bool force_flush) {
+uint64_t ZoneManager::TryFlushSingleItem(const std::shared_ptr<IOBuf>& buf, const std::string& key,
+                                         const std::shared_ptr<IOBuf>& value, bool force_flush) {
   assert(key.size() <= MAX_KEY_SIZE);
   // Expected flush LBA for current key value item.
   uint64_t lba = data_zone_->wp_ + buf->Size();
@@ -143,8 +137,8 @@ uint64_t ZoneManager::TryFlushSingleItem(const std::shared_ptr<IOBuf>& buf,
     // skip the last few bytes for next writing as item lba offset.
     lba += (buf->AvailableSize());
     FlushAndResetIOBuffer(buf);
-    LOG(DEBUG, "buffer flushed, buffer cap: {}, buffer size: {}, lba: {}",
-        buf->Capacity(), buf->Size(), data_zone_->wp_);
+    LOG(DEBUG, "buffer flushed, buffer cap: {}, buffer size: {}, lba: {}", buf->Capacity(),
+        buf->Size(), data_zone_->wp_);
   }
 
   // Append item meta (key sz, value sz) and key data
@@ -157,8 +151,8 @@ uint64_t ZoneManager::TryFlushSingleItem(const std::shared_ptr<IOBuf>& buf,
   char* value_ptr = value->Buffer();
   char* cur_value_ptr = value_ptr;
   while (cur_value_ptr - value_ptr != value_sz) {
-    uint32_t append_sz = std::min(
-        buf->AvailableSize(), value_sz - uint32_t(cur_value_ptr - value_ptr));
+    uint32_t append_sz =
+        std::min(buf->AvailableSize(), value_sz - uint32_t(cur_value_ptr - value_ptr));
     buf->Append(cur_value_ptr, append_sz);
     cur_value_ptr += append_sz;
 
@@ -172,8 +166,8 @@ uint64_t ZoneManager::TryFlushSingleItem(const std::shared_ptr<IOBuf>& buf,
     // If we are lucy enough that both value data and target buffer is consumed,
     // we should reset the buffer.
     if (buf->AvailableSize() == 0) {
-      LOG(DEBUG, "Buffer is full, flushed, io size: {}, lba = {}",
-          buf->Capacity(), data_zone_->wp_);
+      LOG(DEBUG, "Buffer is full, flushed, io size: {}, lba = {}", buf->Capacity(),
+          data_zone_->wp_);
       FlushAndResetIOBuffer(buf);
     }
   }
@@ -201,11 +195,9 @@ Status ZoneManager::ReadSingleItem(uint64_t offset, std::string* key,
     return s;
   }
   uint64_t key_sz = *reinterpret_cast<uint16_t*>(header->Buffer() + align);
-  uint32_t value_sz = *reinterpret_cast<uint32_t*>(header->Buffer() + align +
-                                                   2 /* skip key_sz */);
+  uint32_t value_sz = *reinterpret_cast<uint32_t*>(header->Buffer() + align + 2 /* skip key_sz */);
   uint64_t unaligned_total_sz = align + meta_sz + key_sz + value_sz;
-  uint64_t aligned_total_sz =
-      (unaligned_total_sz + IO_PAGE_SIZE - 1) / IO_PAGE_SIZE * IO_PAGE_SIZE;
+  uint64_t aligned_total_sz = (unaligned_total_sz + IO_PAGE_SIZE - 1) / IO_PAGE_SIZE * IO_PAGE_SIZE;
   // Read out all key value data.
   value = std::make_shared<IOBuf>(aligned_total_sz);
   s = io_handle_->Read(offset - align, value);
@@ -253,14 +245,13 @@ void ZoneManager::RecoverZoneStates(bool reuse_db) {
     // Push empty zones for further use.
     if (zone->state_ == ZoneState::EMPTY) {
       empty_zones_.push_back(zone);
-      LOG(INFO, "Restore empty zone, id : {}, offset: {}", zone->id_,
-          zone->offset_);
+      LOG(INFO, "Restore empty zone, id : {}, offset: {}, capacity: {}", zone->id_, zone->offset_,
+          zone->capacity_bytes_);
     }
   }
 }
 
-Status ZoneManager::FlushAndResetIOBuffer(
-    const std::shared_ptr<IOBuf>& buffer) {
+Status ZoneManager::FlushAndResetIOBuffer(const std::shared_ptr<IOBuf>& buffer) {
   buffer->AlignBufferSize();
   auto s = io_handle_->Append(data_zone_, buffer);
   if (!s.ok()) {
@@ -279,22 +270,19 @@ Status ZoneManager::FinishCurrentDataZone() {
   LOG(INFO, "Finishing current zone, id : {}", data_zone_->id_);
   uint64_t meta_offset = data_zone_->wp_;
   std::shared_ptr<IOBuf> zone_meta;
-  uint32_t real_size =
-      Codec::GenerateDataZoneMeta(data_zone_key_buffers_, zone_meta);
+  uint32_t real_size = Codec::GenerateDataZoneMeta(data_zone_key_buffers_, zone_meta);
 
   assert(data_zone_->wp_ % IO_PAGE_SIZE == 0);
   assert(zone_meta->Size() > 0);
   auto s = io_handle_->Append(data_zone_, zone_meta);
   if (!s.ok()) {
-    LOG(ERROR, "finish zone failed during flush the zone meta: {}",
-        std::strerror(errno));
+    LOG(ERROR, "finish zone failed during flush the zone meta: {}", std::strerror(errno));
     return s;
   }
 
   // This buffer includes pre-footer padding.
   auto footer = std::make_shared<IOBuf>(data_zone_->GetAvailableBytes());
-  Codec::EncodeDataZoneFooter(data_zone_key_buffers_, footer, meta_offset,
-                              real_size);
+  Codec::EncodeDataZoneFooter(data_zone_key_buffers_, footer, meta_offset, real_size);
   s = io_handle_->Append(data_zone_, footer);
   if (!s.ok()) {
     LOG(ERROR,
@@ -304,9 +292,11 @@ Status ZoneManager::FinishCurrentDataZone() {
     return s;
   }
 
-  // update zone state
+  // update zone state and clear zone key buffer.
   data_zone_->state_ = ZoneState::FULL;
-  LOG(INFO, "zone finished success, id : {}", data_zone_->id_);
+  data_zone_key_buffers_.clear();
+  LOG(INFO, "zone finished success, id : {}, reminding immutable buffer: {}, writable buffer: {}",
+      data_zone_->id_, immutable_buffers_.size(), writable_buffers_.size());
   return Status::OK();
 }
 
@@ -334,9 +324,8 @@ void ZoneManager::GC() {
       target_zone->GetGCRank());
   std::shared_ptr<IOBuf> meta;
   ReadDataZoneMeta(target_zone, meta);
-  Codec::DecodeDataZoneMeta(
-      meta->Buffer(), meta->Size(),
-      [&](const std::string& key, uint64_t lba) { index_->Delete(key); });
+  Codec::DecodeDataZoneMeta(meta->Buffer(), meta->Size(),
+                            [&](const std::string& key, uint64_t lba) { index_->Delete(key); });
 
   // Reset the zone
   {
@@ -352,8 +341,7 @@ void ZoneManager::ReadDataZoneMeta(const std::shared_ptr<Zone>& zone,
                                    std::shared_ptr<IOBuf>& meta_buf) {
   std::shared_ptr<IOBuf> footer = std::make_shared<IOBuf>(IO_PAGE_SIZE);
   // read out the last 4KB footer
-  io_handle_->Read(zone->offset_ + zone->capacity_bytes_ - IO_PAGE_SIZE,
-                   footer);
+  io_handle_->Read(zone->offset_ + zone->capacity_bytes_ - IO_PAGE_SIZE, footer);
   // decode the footer and get the offset of the metadata.
   uint64_t meta_offset = 0;
   uint32_t meta_size = 0;
@@ -362,8 +350,7 @@ void ZoneManager::ReadDataZoneMeta(const std::shared_ptr<Zone>& zone,
   assert(meta_size > 0);
 
   // Read out meta buffer
-  meta_buf =
-      std::make_shared<IOBuf>(NumberUtils::AlignTo(meta_size, IO_PAGE_SIZE));
+  meta_buf = std::make_shared<IOBuf>(NumberUtils::AlignTo(meta_size, IO_PAGE_SIZE));
   auto s = io_handle_->Read(meta_offset, meta_buf);
   // Reset the size to its real byte length
   meta_buf->Resize(meta_size);

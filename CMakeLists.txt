@@ -24,7 +24,7 @@ LIST(REMOVE_ITEM SOURCE_FILES ${TEST_FILES})
 
 # build neodb library
 ADD_LIBRARY(neodb STATIC ${SOURCE_FILES})
-TARGET_LINK_LIBRARIES(neodb spdlog)
+TARGET_LINK_LIBRARIES(neodb spdlog gflags)
 
 # build neodb test cases
 IF (WITH_TEST)
@@ -41,3 +41,7 @@ IF (WITH_TEST)
         ADD_TEST(NAME ${CMAKE_PROJECT_NAME}_${exename} COMMAND ${CMAKE_PROJECT_NAME}_${exename})
     ENDFOREACH ()
 ENDIF ()
+
+# build tools
+ADD_EXECUTABLE(neodb_bench tools/neodb_bench.cc)
+TARGET_LINK_LIBRARIES(neodb_bench neodb)

@@ -17,15 +17,11 @@ namespace neodb {
 
 class ZoneManager {
  public:
-  explicit ZoneManager(StoreOptions options,
-                       std::unique_ptr<IOHandle> io_handle,
+  explicit ZoneManager(StoreOptions options, std::unique_ptr<IOHandle> io_handle,
                        const std::shared_ptr<Index>& index)
-      : options_(std::move(options)),
-        io_handle_(std::move(io_handle)),
-        index_(index) {
+      : options_(std::move(options)), io_handle_(std::move(io_handle)), index_(index) {
     for (int i = 0; i < options_.writable_buffer_num_; ++i) {
-      writable_buffers_.emplace_back(
-          new WriteBuffer(options_.write_buffer_size_));
+      writable_buffers_.emplace_back(new WriteBuffer(options_.write_buffer_size_));
     }
     // We cannot `resize` the writable_buffer_mtx_ directly because std::mutex
     // is not movable but the std::vector is.
@@ -40,7 +36,8 @@ class ZoneManager {
   // Start a dedicated flush worker
   void StartFlushWorker() {
     flush_worker_ = std::thread([&]() {
-      while (!flush_worker_stopped_) {
+      // IIF all buffers were flushed and the flag was turned off, we can stop background job.
+      while (!flush_worker_stopped_ || !immutable_buffers_.empty()) {
         FlushImmutableBuffers();
       }
       LOG(INFO, "ZoneManager flush worker stopped");
@@ -85,10 +82,8 @@ class ZoneManager {
   //
   // @param force_flush Flush to disk even if the buffer is not yet full.
   // @return The flushed item's target LBA (possible not yet flushed to disk)
-  uint64_t TryFlushSingleItem(const std::shared_ptr<IOBuf>& buf,
-                              const std::string& key,
-                              const std::shared_ptr<IOBuf>& value,
-                              bool force_flush = false);
+  uint64_t TryFlushSingleItem(const std::shared_ptr<IOBuf>& buf, const std::string& key,
+                              const std::shared_ptr<IOBuf>& value, bool force_flush = false);
 
   // Flush a single IO buffer.
   // The IO buffer holds a list of encoded items and should be aligned before
@@ -102,8 +97,7 @@ class ZoneManager {
 
   // Read a single key value item from the device
   // @param offset The item's LBA offset on the device, including item meta.
-  Status ReadSingleItem(uint64_t offset, std::string* key,
-                        std::shared_ptr<IOBuf>& value);
+  Status ReadSingleItem(uint64_t offset, std::string* key, std::shared_ptr<IOBuf>& value);
 
   uint32_t GetWritableBufferNum() const { return writable_buffers_.size(); }
 
@@ -120,8 +114,7 @@ class ZoneManager {
   void GC();
 
   // Read data zone's footer and then get the meta buffer.
-  void ReadDataZoneMeta(const std::shared_ptr<Zone>& zone,
-                        std::shared_ptr<IOBuf>& meta_buf);
+  void ReadDataZoneMeta(const std::shared_ptr<Zone>& zone, std::shared_ptr<IOBuf>& meta_buf);
 
   std::shared_ptr<Zone> GetCurrentDataZone() { return data_zone_; }
 

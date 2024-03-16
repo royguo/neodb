@@ -16,8 +16,7 @@ namespace neodb {
 class NeoDB {
  public:
   explicit NeoDB(DBOptions options)
-      : options_(std::move(options)),
-        store_num_(options_.store_options_list_.size()) {
+      : options_(std::move(options)), store_num_(options_.store_options_list_.size()) {
     for (auto& store_options : options_.store_options_list_) {
       LOG(INFO, "Init store, device : {}", store_options.device_path_);
       stores_.emplace_back(new Store(store_options));
@@ -37,6 +36,9 @@ class NeoDB {
 
   // zero-copy Get
   Status Get(const std::string& key, std::shared_ptr<IOBuf>& value);
+
+  // Flush all existing buffer to the disk.
+  //  Status Flush();
 
  private:
   DBOptions options_;

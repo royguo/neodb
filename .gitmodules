@@ -4,3 +4,6 @@
 [submodule "third/spdlog"]
 	path = third/spdlog
 	url = git@github.com:gabime/spdlog.git
+[submodule "third/gflags"]
+	path = third/gflags
+	url = git@github.com:gflags/gflags.git

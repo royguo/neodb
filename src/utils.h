@@ -30,8 +30,7 @@ class StringUtils {
 
 class FileUtils {
  public:
-  static std::string GenerateRandomFile(const std::string& prefix,
-                                        uint32_t size) {
+  static std::string GenerateRandomFile(const std::string& prefix, uint32_t size) {
     std::string filename = prefix + std::to_string(std::random_device()());
     LOG(INFO, "Generate random file, filename: {}", filename);
     int fd = open(filename.c_str(), O_RDWR | O_CREAT, 0666);
@@ -48,8 +47,7 @@ class FileUtils {
   }
 
   static bool DeleteFile(const std::string& filename) {
-    if (std::filesystem::exists(filename) &&
-        std::filesystem::is_regular_file(filename)) {
+    if (std::filesystem::exists(filename) && std::filesystem::is_regular_file(filename)) {
       std::filesystem::remove(filename);
       return true;
     }
@@ -57,12 +55,10 @@ class FileUtils {
   }
 
   // Delete all files in target directory
-  static int DeleteFilesByPrefix(const std::string& dir,
-                                 const std::string& prefix) {
+  static int DeleteFilesByPrefix(const std::string& dir, const std::string& prefix) {
     int total = 0;
     for (const auto& entry : std::filesystem::directory_iterator(dir)) {
-      if (entry.is_regular_file() &&
-          entry.path().filename().string().find(prefix) == 0) {
+      if (entry.is_regular_file() && entry.path().filename().string().find(prefix) == 0) {
         std::filesystem::remove(entry);
         total++;
       }
@@ -98,8 +94,21 @@ class NumberUtils {
 class HashUtils {
  public:
   // TODO(Roy Guo) Use a simple hash & fast hash library
-  static uint64_t FastHash(const std::string& str) { return 1; }
+  inline static uint64_t FastHash(const std::string& str) { return 1; }
 };
 
-class TimeUtils {};
+class TimeUtils {
+ public:
+  inline static uint64_t GetCurrentTimeInNs() {
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(
+               std::chrono::system_clock::now().time_since_epoch())
+        .count();
+  }
+
+  inline static uint64_t GetCurrentTimeInSeconds() {
+    return std::chrono::duration_cast<std::chrono::seconds>(
+               std::chrono::system_clock::now().time_since_epoch())
+        .count();
+  }
+};
 }  // namespace neodb

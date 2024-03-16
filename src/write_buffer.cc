@@ -8,7 +8,7 @@ Status WriteBuffer::Put(const std::string& key,
                         const std::shared_ptr<IOBuf>& value) {
   if (immutable) {
     return Status::StatusError(
-        "Put failed, WriteBuffer already changed to immutable!");
+        "Put failed, WriteBuffer is already FULL and immutable!");
   }
   items_.emplace_back(key, value);
   used_bytes_ += (key.size() + value->Size());

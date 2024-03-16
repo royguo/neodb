@@ -46,7 +46,7 @@ void InitLogger(const LoggerOptions& options) {
 
   spdlog::set_default_logger(logger);
   spdlog::set_pattern("[%Y-%m-%H T%T.%e][%t][%l][%s:%#] %v");
-  spdlog::info("logger initialized, log level: {}", options.level_);
+  SPDLOG_INFO("logger initialized, log level: {}", options.level_);
 }
 
 }  // namespace neodb
