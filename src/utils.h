@@ -84,6 +84,13 @@ class NumberUtils {
     return dist(gen);
   }
 
+  static uint64_t FastRand32() {
+    static thread_local std::random_device rd;
+    static thread_local std::mt19937_64 gen(rd());
+    static thread_local std::uniform_int_distribution<uint32_t> dist;
+    return dist(gen);
+  }
+
   static uint64_t AlignTo(uint64_t num, uint64_t alignment) {
     if (alignment <= 1) return num;
     if (num < alignment) return alignment;
@@ -101,6 +108,12 @@ class TimeUtils {
  public:
   inline static uint64_t GetCurrentTimeInNs() {
     return std::chrono::duration_cast<std::chrono::nanoseconds>(
+               std::chrono::system_clock::now().time_since_epoch())
+        .count();
+  }
+
+  inline static uint64_t GetCurrentTimeInUs() {
+    return std::chrono::duration_cast<std::chrono::microseconds>(
                std::chrono::system_clock::now().time_since_epoch())
         .count();
   }

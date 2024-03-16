@@ -5,8 +5,7 @@
 
 namespace neodb {
 Status FileIOHandle::Write(uint64_t offset, std::shared_ptr<IOBuf> data) {
-  uint64_t ret =
-      pwrite(write_fd_, data->Buffer(), data->Size(), int64_t(offset));
+  uint64_t ret = pwrite(write_fd_, data->Buffer(), data->Size(), int64_t(offset));
   if (ret != data->Size()) {
     LOG(ERROR, "Failed to write data: {} ", std::strerror(errno));
     return Status::IOError("Write failed!");
@@ -14,8 +13,7 @@ Status FileIOHandle::Write(uint64_t offset, std::shared_ptr<IOBuf> data) {
   return Status::OK();
 }
 
-Status FileIOHandle::ReadAppend(uint64_t offset, uint32_t size,
-                                std::shared_ptr<IOBuf> data) {
+Status FileIOHandle::ReadAppend(uint64_t offset, uint32_t size, std::shared_ptr<IOBuf> data) {
   assert(data->AvailableSize() >= size);
   uint64_t ret = pread(read_fd_, data->Buffer(), size, int64_t(offset));
   data->IncreaseSize(size);
@@ -28,18 +26,17 @@ Status FileIOHandle::ReadAppend(uint64_t offset, uint32_t size,
 
 Status FileIOHandle::Read(uint64_t offset, std::shared_ptr<IOBuf> data) {
   assert(data->Capacity() % IO_PAGE_SIZE == 0);
-  uint64_t ret =
-      pread(read_fd_, data->Buffer(), data->Capacity(), int64_t(offset));
+  uint64_t ret = pread(read_fd_, data->Buffer(), data->Capacity(), int64_t(offset));
   if (ret != data->Capacity()) {
-    LOG(ERROR, "Failed to read data, msg: {}", std::strerror(errno));
+    LOG(ERROR, "Failed to read data, msg: {}, offset: {}, read_sz: {}, ret_sz: {}",
+        std::strerror(errno), offset, data->Capacity(), ret);
     return Status::IOError(std::strerror(errno));
   }
   data->IncreaseSize(ret);
   return Status::OK();
 }
 
-Status FileIOHandle::Append(const std::shared_ptr<Zone>& zone,
-                            std::shared_ptr<IOBuf> data) {
+Status FileIOHandle::Append(const std::shared_ptr<Zone>& zone, std::shared_ptr<IOBuf> data) {
   auto s = Write(zone->wp_, data);
   zone->wp_ += data->Size();
   return s;
@@ -75,7 +72,7 @@ void FileIOHandle::Trim(int fd, uint64_t offset, uint64_t sz) {
     return;
   }
 #else
-
+  // TODO
 #endif
 }
 

@@ -53,8 +53,10 @@ class ZoneManager {
         FlushImmutableBuffers();
       }
       FinishCurrentDataZone();
-      LOG(INFO, "ZoneManager flush worker stopped, immutable buffers {}, writable buffers: {}",
-          immutable_buffers_.size(), writable_buffers_.size());
+      LOG(INFO,
+          "ZoneManager flush worker stopped, "
+          "immutable buffers {}, writable buffers: {}, empty zones: {}",
+          immutable_buffers_.size(), writable_buffers_.size(), empty_zones_.size());
     });
     LOG(INFO, "ZoneManager flush worker started");
   }

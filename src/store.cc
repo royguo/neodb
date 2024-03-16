@@ -18,9 +18,8 @@ Status Store::Get(const std::string& key, std::shared_ptr<IOBuf>& value) {
   } else {
     uint64_t lba = std::get<Index::LBAValue>(value_variant);
     std::string read_key;
-    std::shared_ptr<IOBuf> read_value;
-    zone_manager_->ReadSingleItem(lba, &read_key, read_value);
-    if (key.compare(read_key) != 0) {
+    zone_manager_->ReadSingleItem(lba, &read_key, value);
+    if (key != read_key) {
       return Status::IOError("loaded item's key not match!");
     }
     return Status::OK();

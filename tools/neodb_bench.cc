@@ -47,7 +47,10 @@ class Benchmark {
     while (preloaded_bytes < target_preload_bytes) {
       std::string key = StringUtils::GenerateRandomString(FLAGS_key_sz);
       preloaded_bytes += (key.size() + common_value.size());
-      db_->Put(key, common_value);
+      auto s = db_->Put(key, common_value);
+      if (!s.ok()) {
+        LOG(ERROR, "Put failed: {}", s.msg());
+      }
       // Print each 5 seconds
       if (TimeUtils::GetCurrentTimeInSeconds() - now >= 5) {
         LOG(INFO, "Preload data size: {} MB", (preloaded_bytes >> 20));
@@ -57,9 +60,67 @@ class Benchmark {
     LOG(INFO, "Preloading finished, total written: {} bytes", preloaded_bytes);
   }
 
-  void Run() {}
+  void Run() {
+    std::vector<HistStats> write_stats_;
+    uint64_t target_write_bytes = FLAGS_write_size_gb << 30;
+    std::atomic<uint64_t> written_bytes = 0;
+    uint64_t expect_item_cnt = target_write_bytes / (FLAGS_key_sz + FLAGS_value_sz);
+    verify_keys_.reserve(expect_item_cnt);
 
-  void PrintStats() {}
+    std::string common_value = StringUtils::GenerateRandomString(FLAGS_value_sz);
+
+    for (int i = 0; i < FLAGS_workers; ++i) {
+      write_stats_.emplace_back();
+      //      workers_.emplace_back([&, i]() {
+      // Write data
+      while (written_bytes < target_write_bytes) {
+        std::string key = StringUtils::GenerateRandomString(FLAGS_key_sz);
+        auto t1 = TimeUtils::GetCurrentTimeInUs();
+        auto s = db_->Put(key, common_value);
+        assert(s.ok());
+        write_stats_[i].Append(TimeUtils::GetCurrentTimeInUs() - t1);
+        written_bytes += (key.size() + common_value.size());
+        verify_keys_.emplace_back(std::move(key));
+      }
+      //      });
+    }
+
+    for (auto& worker : workers_) {
+      worker.join();
+    }
+    LOG(INFO, "finish insertion");
+
+    // Verify data
+    uint64_t total = verify_keys_.size();
+    uint64_t hits = 0;
+    uint64_t not_found = 0;
+    uint64_t corrupts = 0;
+    for (auto& key : verify_keys_) {
+      std::string value;
+      auto s = db_->Get(key, &value);
+      if (s.code() == Status::Code::kNotFound) {
+        not_found++;
+        continue;
+      }
+      assert(s.ok());
+      if (value == common_value) {
+        hits++;
+      } else {
+        corrupts++;
+      }
+    }
+    LOG(INFO, "----------------------------");
+    LOG(INFO, "total: {}, hits: {}, not_found: {}, hit rate: {}, corrupts: {}", total, hits,
+        not_found, hits * 100 / total, corrupts);
+    LOG(INFO, "----------------------------");
+
+    HistStats stats;
+    for (auto& stat : write_stats_) {
+      stats.Merge(stat);
+    }
+    LOG(INFO, "{}", stats.ToString(" us"));
+    LOG(INFO, "----------------------------");
+  }
 
  private:
   std::string device_prefix_ = "neodb_bench_file_";
@@ -67,6 +128,10 @@ class Benchmark {
   DBOptions db_options_;
 
   std::unique_ptr<NeoDB> db_;
+
+  std::vector<std::string> verify_keys_;
+
+  std::vector<std::thread> workers_;
 
   std::atomic<uint64_t> inserted_count_{0};
   std::atomic<uint64_t> inserted_bytes_{0};

@@ -10,4 +10,4 @@
 
 #define MAX_KEY_SIZE (1024)
 
-#define MAX_VALUE_SIZE (256UL << 20)
+#define MAX_VALUE_SIZE (32UL << 20)
