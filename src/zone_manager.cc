@@ -5,6 +5,7 @@
 #include <memory>
 
 #include "codec.h"
+#include "gc.h"
 #include "utils.h"
 
 namespace neodb {
@@ -306,24 +307,15 @@ void ZoneManager::GC() {
   if (empty_zones_.size() >= options_.gc_threshold_zone_num_) {
     return;
   }
-  std::shared_ptr<Zone> target_zone;
-  int score = 0;
-  // TODO Select top zones with highest gc score.
-  for (const auto& zone : zones_) {
-    if (zone->GetGCRank() >= score && zone->state_ == ZoneState::FULL) {
-      score = zone->GetGCRank();
-      target_zone = zone;
-    }
-  }
-
+  std::shared_ptr<Zone> target_zone = GC::SelectGCCandidate(zones_);
+  
   if (target_zone == nullptr) {
     LOG(ERROR, "No candidate zone for GC could be found!");
     return;
   }
 
   // Read zone footer and remove keys from index.
-  LOG(INFO, "Decoding a zone meta for GC, id : {}, score: {}", target_zone->id_,
-      target_zone->GetGCRank());
+  LOG(INFO, "Decoding a zone meta for GC, id : {}", target_zone->id_);
   std::shared_ptr<IOBuf> meta;
   ReadDataZoneMeta(target_zone, meta);
   Codec::DecodeDataZoneMeta(meta->Buffer(), meta->Size(),
