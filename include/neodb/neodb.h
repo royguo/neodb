@@ -40,6 +40,8 @@ class NeoDB {
   // Flush all existing buffer to the disk.
   //  Status Flush();
 
+  std::shared_ptr<Index> DEBUG_GetIndex(int idx) { return stores_[idx]->DEBUG_GetIndex(); }
+
  private:
   DBOptions options_;
 

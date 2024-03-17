@@ -94,16 +94,17 @@ void ZoneManager::FlushImmutableBuffers() {
     uint64_t max_next_item_encoded_size = MAX_KEY_SIZE + item.second->Size() + IO_PAGE_SIZE;
     if (data_zone_->GetAvailableBytes() <=
         meta_size + footer_size_ + max_cur_buffer_size + max_next_item_encoded_size) {
-      // before switch to new zone, we should flush the current buffer because
-      // the related LBA were already calculated.
+      // Before switch to new zone, we should flush the current buffer because the related LBA were
+      // already calculated.
       FlushAndResetIOBuffer(encoded_buf);
       SwitchDataZone();
+      data_zone_key_buffers_.clear();
       assert(data_zone_->GetUsedBytes() % IO_PAGE_SIZE == 0);
     }
 
     // Continue to flush next item to the new data zone.
-    // Note that the flush may not flush the data into disk but only flush to
-    // the IO buffer for batch processing.
+    // Note that this operation may not flush the data into disk, instead, only flush to the IO
+    // buffer for batch processing. But the returned LBA is expected to be correct later.
     uint64_t lba =
         TryFlushSingleItem(encoded_buf, item.first, item.second, i == (items->size() - 1));
     lba_vec.push_back(lba);
@@ -130,8 +131,8 @@ uint64_t ZoneManager::TryFlushSingleItem(const std::shared_ptr<IOBuf>& buf, cons
   const uint16_t meta_sz = 6;
   const uint16_t key_sz = key.size();
   const uint32_t value_sz = value->Size();
-  // We should process item buffer and then reset it if there's no enough free
-  // space for key data and meta
+  // We should process item buffer and then reset it if there's no enough free space for key data
+  // and meta
   if (buf->AvailableSize() <= (key_sz + meta_sz)) {
     LOG(DEBUG, "buffer almost full, flush it now, size: {}", buf->Size());
     // skip the last few bytes for next writing as item lba offset.
@@ -296,7 +297,6 @@ Status ZoneManager::FinishCurrentDataZone() {
 
   // update zone state and clear zone key buffer.
   data_zone_->state_ = ZoneState::FULL;
-  data_zone_key_buffers_.clear();
   LOG(INFO, "zone finished success, id : {}, reminding immutable buffer: {}, writable buffer: {}",
       data_zone_->id_, immutable_buffers_.size(), writable_buffers_.size());
   return Status::OK();
@@ -327,7 +327,10 @@ void ZoneManager::GC() {
   std::shared_ptr<IOBuf> meta;
   ReadDataZoneMeta(target_zone, meta);
   Codec::DecodeDataZoneMeta(meta->Buffer(), meta->Size(),
-                            [&](const std::string& key, uint64_t lba) { index_->Delete(key); });
+                            [&](const std::string& key, uint64_t lba) {
+                              bool deleted = index_->Delete(key);
+                              assert(deleted);
+                            });
 
   // Reset the zone
   {

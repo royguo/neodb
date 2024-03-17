@@ -15,12 +15,10 @@ namespace neodb {
 class Store {
  public:
   explicit Store(const StoreOptions& options) : options_(options) {
-    auto io_handle = std::make_unique<FileIOHandle>(
-        options.device_path_, options.device_capacity_,
-        options.device_zone_capacity_);
+    auto io_handle = std::make_unique<FileIOHandle>(options.device_path_, options.device_capacity_,
+                                                    options.device_zone_capacity_);
     index_ = std::make_shared<Index>();
-    zone_manager_ =
-        std::make_unique<ZoneManager>(options, std::move(io_handle), index_);
+    zone_manager_ = std::make_unique<ZoneManager>(options, std::move(io_handle), index_);
     zone_manager_->StartFlushWorker();
     zone_manager_->StartGCWorker();
   }
@@ -34,6 +32,8 @@ class Store {
   Status Put(const std::string& key, const std::shared_ptr<IOBuf>& value);
 
   Status Get(const std::string& key, std::shared_ptr<IOBuf>& value);
+
+  std::shared_ptr<Index> DEBUG_GetIndex() { return index_; }
 
  private:
   StoreOptions options_;

@@ -32,11 +32,13 @@ class Index {
 
   Status Get(const std::string& key, ValueVariant& value);
 
-  void Update(const std::string& key, const ValueVariant& value);
+  bool Update(const std::string& key, const ValueVariant& value);
 
-  void Delete(const std::string& key);
+  bool Delete(const std::string& key);
 
   bool Exist(const std::string& key);
+
+  bool ExistInLBA(const std::string& key);
 
  private:
   // TODO(Roy Guo) Use better index data structures.

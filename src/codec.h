@@ -30,10 +30,12 @@ class Codec {
 
   // @param meta_bytes real byte length of the meta data.
   static void EncodeDataZoneFooter(const Codec::DataZoneKeyBuffer& buffer,
-                                     const std::shared_ptr<IOBuf>& buf,
-                                     uint64_t meta_offset, uint32_t meta_bytes);
+                                   const std::shared_ptr<IOBuf>& buf, uint64_t meta_offset,
+                                   uint32_t meta_bytes);
 
-  static void DecodeDataZoneFooter(const std::shared_ptr<IOBuf>& footer_buf,
-                                   uint64_t* meta_offset, uint32_t* meta_size);
+  static void DecodeDataZoneFooter(const std::shared_ptr<IOBuf>& footer_buf, uint64_t* meta_offset,
+                                   uint32_t* meta_size);
+
+  static void EncodeZoneVersionToLBA(uint64_t lba, uint8_t version);
 };
 }  // namespace neodb

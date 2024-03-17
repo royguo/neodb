@@ -13,8 +13,7 @@ void InitLogger(const LoggerOptions& options) {
   auto create_rotating_logger = [&options, level, path]() {
     // rotating logger
     auto logger = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
-        fmt::format("{}/neodb.log", path.empty() ? "." : path),
-        options.rotation_size_m_, options.max_backups_, true);
+        "neodb.log", options.rotation_size_m_, options.max_backups_, true);
     logger->set_level(level);
     return logger;
   };

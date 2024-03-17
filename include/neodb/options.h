@@ -26,7 +26,7 @@ struct StoreOptions {
   // Maximum capacity of each write buffer.
   // Total system memory usage:
   //  write_buffer_size_ * (writable_buffer_num_ * immutable_buffer_num_)
-  uint32_t write_buffer_size_ = 256 << 20;
+  uint32_t write_buffer_size_ = 128 << 20;
 
   // All writable buffers could be written in parallel.
   uint64_t writable_buffer_num_ = 10;

@@ -38,7 +38,7 @@ uint32_t Codec::GenerateDataZoneMeta(const Codec::DataZoneKeyBuffer& buffer,
     uint16_t key_len = item.first.size();
     memcpy(ptr, &key_len, 2);
     memcpy(ptr + 2, &(item.second), 8);
-    memcpy(ptr + 10, item.first.data(), item.first.size());
+    memcpy(ptr + 10, item.first.data(), key_len);
     ptr += (10 + item.first.size());
     key_cnt++;
   }
@@ -49,9 +49,8 @@ uint32_t Codec::GenerateDataZoneMeta(const Codec::DataZoneKeyBuffer& buffer,
 }
 
 // TODO check CRC
-void Codec::DecodeDataZoneMeta(
-    const char* meta_buffer, uint32_t buffer_size,
-    const std::function<void(const std::string&, uint64_t)>& cb) {
+void Codec::DecodeDataZoneMeta(const char* meta_buffer, uint32_t buffer_size,
+                               const std::function<void(const std::string&, uint64_t)>& cb) {
   assert(buffer_size > 0);
   const char* ptr = meta_buffer;
   uint32_t key_cnt = 0;
@@ -73,8 +72,8 @@ void Codec::DecodeDataZoneMeta(
 // [meta offset 8B] <--- zone end
 // @param meta_bytes Real un-aligned buffer size.
 void Codec::EncodeDataZoneFooter(const Codec::DataZoneKeyBuffer& buffer,
-                                 const std::shared_ptr<IOBuf>& buf,
-                                 uint64_t meta_offset, uint32_t meta_bytes) {
+                                 const std::shared_ptr<IOBuf>& buf, uint64_t meta_offset,
+                                 uint32_t meta_bytes) {
   assert(buf->Capacity() % IO_PAGE_SIZE == 0);
   assert(buf->Capacity() >= IO_PAGE_SIZE);
   uint32_t key_cnt = buffer.size();
@@ -84,8 +83,8 @@ void Codec::EncodeDataZoneFooter(const Codec::DataZoneKeyBuffer& buffer,
   buf->Append((char*)&meta_offset, 8);
 }
 
-void Codec::DecodeDataZoneFooter(const std::shared_ptr<IOBuf>& footer_buf,
-                                 uint64_t* meta_offset, uint32_t* meta_size) {
+void Codec::DecodeDataZoneFooter(const std::shared_ptr<IOBuf>& footer_buf, uint64_t* meta_offset,
+                                 uint32_t* meta_size) {
   char* ptr = footer_buf->Buffer();
   *meta_offset = *reinterpret_cast<uint64_t*>(ptr + IO_PAGE_SIZE - 8);
   *meta_size = *reinterpret_cast<uint32_t*>(ptr + IO_PAGE_SIZE - 12);

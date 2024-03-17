@@ -7,12 +7,12 @@
 
 DEFINE_uint32(key_sz, 10, "key size of each item, default 10B");
 DEFINE_uint32(value_sz, 100UL << 10, "value size of each item, default 100KB");
-DEFINE_uint64(preload_size_gb, 5, "");
-DEFINE_uint64(write_size_gb, 10, "total write GB for the test after preload");
+DEFINE_uint64(preload_size_gb, 1, "");
+DEFINE_uint64(write_size_gb, 20, "total write GB for the test after preload");
 DEFINE_uint32(read_ratio, 10, "read percent of total operations");
 DEFINE_uint64(device_capacity_gb, 10, "");
 DEFINE_uint64(zone_capacity_mb, 256, "");
-DEFINE_uint32(workers, 1, "client thread number, default 1");
+DEFINE_uint32(workers, 2, "client thread number, default 1");
 
 namespace neodb::tools {
 
@@ -37,6 +37,10 @@ class Benchmark {
 
   // The prepared data will not be remembered, just for occupying the space.
   void Prepare() {
+    if (FLAGS_preload_size_gb == 0) {
+      LOG(INFO, "Skip preload");
+      return;
+    }
     uint64_t preloaded_bytes = 0;
     uint64_t target_preload_bytes = (FLAGS_preload_size_gb << 30);
     uint64_t now = TimeUtils::GetCurrentTimeInSeconds();
@@ -69,25 +73,29 @@ class Benchmark {
 
     std::string common_value = StringUtils::GenerateRandomString(FLAGS_value_sz);
 
+    auto start = TimeUtils::GetCurrentTimeInSeconds();
     for (int i = 0; i < FLAGS_workers; ++i) {
       write_stats_.emplace_back();
-      //      workers_.emplace_back([&, i]() {
-      // Write data
-      while (written_bytes < target_write_bytes) {
-        std::string key = StringUtils::GenerateRandomString(FLAGS_key_sz);
-        auto t1 = TimeUtils::GetCurrentTimeInUs();
-        auto s = db_->Put(key, common_value);
-        assert(s.ok());
-        write_stats_[i].Append(TimeUtils::GetCurrentTimeInUs() - t1);
-        written_bytes += (key.size() + common_value.size());
-        verify_keys_.emplace_back(std::move(key));
-      }
-      //      });
+      workers_.emplace_back([&, i]() {
+        // Write data
+        while (written_bytes < target_write_bytes) {
+          std::string key = StringUtils::GenerateRandomString(FLAGS_key_sz);
+          auto t1 = TimeUtils::GetCurrentTimeInUs();
+          auto s = db_->Put(key, common_value);
+          assert(s.ok());
+          write_stats_[i].Append(TimeUtils::GetCurrentTimeInUs() - t1);
+          written_bytes += (key.size() + common_value.size());
+          verify_keys_.emplace_back(std::move(key));
+        }
+      });
     }
 
     for (auto& worker : workers_) {
       worker.join();
     }
+    auto end = TimeUtils::GetCurrentTimeInSeconds();
+    uint64_t throughput_mb = (target_write_bytes / (end - start)) >> 20;
+
     LOG(INFO, "finish insertion");
 
     // Verify data
@@ -95,6 +103,7 @@ class Benchmark {
     uint64_t hits = 0;
     uint64_t not_found = 0;
     uint64_t corrupts = 0;
+
     for (auto& key : verify_keys_) {
       std::string value;
       auto s = db_->Get(key, &value);
@@ -109,17 +118,37 @@ class Benchmark {
         corrupts++;
       }
     }
-    LOG(INFO, "----------------------------");
-    LOG(INFO, "total: {}, hits: {}, not_found: {}, hit rate: {}, corrupts: {}", total, hits,
-        not_found, hits * 100 / total, corrupts);
-    LOG(INFO, "----------------------------");
+
+    db_ = nullptr;
 
     HistStats stats;
     for (auto& stat : write_stats_) {
       stats.Merge(stat);
     }
+
+    std::string line = "--------------------------------------------------------";
+    LOG(INFO, line);
+    LOG(INFO, "Total items: {}, hits: {}, not_found: {}, hit rate: {}, corrupts: {}", total, hits,
+        not_found, hits * 100 / total, corrupts);
+    LOG(INFO, line);
+    LOG(INFO, "Time cost: {} seconds, total bytes written: {}, throughput: {} MB/s", end - start,
+        target_write_bytes, throughput_mb);
+    LOG(INFO, line);
     LOG(INFO, "{}", stats.ToString(" us"));
-    LOG(INFO, "----------------------------");
+    LOG(INFO, line);
+  }
+
+ private:
+  void DEBUG_PrintIndexValue(const std::string& key) {
+    auto index = db_->DEBUG_GetIndex(0);
+    Index::ValueVariant value;
+    index->Get(key, value);
+    if (std::holds_alternative<Index::MemValue>(value)) {
+      LOG(INFO, "key :{}, index points to memory value", key);
+    } else {
+      uint64_t lba = std::get<Index::LBAValue>(value);
+      LOG(INFO, "key: {}, index points to lba value: {}", key, lba);
+    }
   }
 
  private:
@@ -132,9 +161,6 @@ class Benchmark {
   std::vector<std::string> verify_keys_;
 
   std::vector<std::thread> workers_;
-
-  std::atomic<uint64_t> inserted_count_{0};
-  std::atomic<uint64_t> inserted_bytes_{0};
 };
 }  // namespace neodb::tools
 

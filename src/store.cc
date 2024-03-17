@@ -20,7 +20,7 @@ Status Store::Get(const std::string& key, std::shared_ptr<IOBuf>& value) {
     std::string read_key;
     zone_manager_->ReadSingleItem(lba, &read_key, value);
     if (key != read_key) {
-      return Status::IOError("loaded item's key not match!");
+      return Status::IOError("Read single item error, key : " + key);
     }
     return Status::OK();
   }
