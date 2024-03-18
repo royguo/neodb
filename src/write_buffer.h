@@ -9,7 +9,7 @@
 
 namespace neodb {
 // A write buffer contains a set of KV items that was written to this system.
-// If a write buffer exceeds its capacity, it will be convert into a immutable
+// If a write buffer exceeds its capacity, it will be convert into a immutable_
 // write buffer.
 // WriteBuffer could be used in a multi-thread environment.
 class WriteBuffer {
@@ -30,9 +30,9 @@ class WriteBuffer {
 
   bool IsFull() const { return used_bytes_ >= capacity_bytes_; }
 
-  bool IsImmutable() const { return immutable; }
+  bool IsImmutable() const { return immutable_; }
 
-  void MarkImmutable() { immutable = true; }
+  void MarkImmutable() { immutable_ = true; }
 
   std::vector<Item>* GetItems() { return &items_; }
 
@@ -43,6 +43,6 @@ class WriteBuffer {
 
   uint32_t used_bytes_ = 0;
 
-  bool immutable = false;
+  bool immutable_ = false;
 };
 }  // namespace neodb

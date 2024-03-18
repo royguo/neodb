@@ -41,7 +41,7 @@ class ZoneManager {
       while (!flush_worker_stopped_ || !immutable_buffers_.empty()) {
         FlushImmutableBuffers();
       }
-      // When the thread is about to stop, we should flush all immutable buffers.
+      // When the thread is about to stop, we should flush all immutable_ buffers.
       for (auto& buffer : writable_buffers_) {
         if (!buffer->GetItems()->empty()) {
           buffer->MarkImmutable();
@@ -55,7 +55,7 @@ class ZoneManager {
       FinishCurrentDataZone();
       LOG(INFO,
           "ZoneManager flush worker stopped, "
-          "immutable buffers {}, writable buffers: {}, empty zones: {}",
+          "immutable_ buffers {}, writable buffers: {}, empty zones: {}",
           immutable_buffers_.size(), writable_buffers_.size(), empty_zones_.size());
     });
     LOG(INFO, "ZoneManager flush worker started");
@@ -87,7 +87,7 @@ class ZoneManager {
 
   Status Append(const std::string& key, const std::shared_ptr<IOBuf>& value);
 
-  // Obtain an immutable buffer and flush its items to the disk.
+  // Obtain an immutable_ buffer and flush its items to the disk.
   void FlushImmutableBuffers();
 
   // Encode a single key value item into the target buffer. If the target buffer
@@ -105,7 +105,7 @@ class ZoneManager {
   // The IO buffer holds a list of encoded items and should be aligned before
   // the flushing. Note that the buffer will be reset to empty for further usage
   // after the resetting.
-  Status FlushAndResetIOBuffer(const std::shared_ptr<IOBuf>& buffer);
+  Status FlushAndResetIOBuffer(const std::shared_ptr<IOBuf>& buf);
 
   // Finish the zone means to flush the zone meta and zone footer, reject all
   // further write requests and mark the zone as FULL.
@@ -136,11 +136,8 @@ class ZoneManager {
 
  private:
   const uint64_t footer_size_ = IO_PAGE_SIZE;
-
   StoreOptions options_;
-
   std::unique_ptr<IOHandle> io_handle_;
-
   std::shared_ptr<Index> index_;
 
   // Only a single data zone is writable at the same time to fit the append-only
@@ -153,6 +150,10 @@ class ZoneManager {
   // flush it. During the recovery process, we should be able to recovery all
   // the items from the meta.
   std::list<std::pair<std::string, uint64_t>> data_zone_key_buffers_;
+  // Compared to the data_zone_key_buffers, this `encoded_io_key_buf` only used for current io
+  // buffer's related keys. So after each flush we can update the related key index.
+  std::vector<std::pair<std::string, uint64_t>> encoded_io_key_buf_;
+
   // Accurate size of the data zone's meta, which should be flushed before the
   // 4KB zone footer.
   uint64_t expect_data_zone_meta_size_ = 0;

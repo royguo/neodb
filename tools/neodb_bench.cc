@@ -12,7 +12,7 @@ DEFINE_uint64(write_size_gb, 20, "total write GB for the test after preload");
 DEFINE_uint32(read_ratio, 10, "read percent of total operations");
 DEFINE_uint64(device_capacity_gb, 10, "");
 DEFINE_uint64(zone_capacity_mb, 256, "");
-DEFINE_uint32(workers, 2, "client thread number, default 1");
+DEFINE_uint32(workers, 2, "client thread number");
 
 namespace neodb::tools {
 

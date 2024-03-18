@@ -8,6 +8,7 @@
 
 #include "neodb/io_buf.h"
 #include "neodb/status.h"
+#include "oneapi/tbb/concurrent_hash_map.h"
 
 namespace neodb {
 
@@ -41,9 +42,11 @@ class Index {
   bool ExistInLBA(const std::string& key);
 
  private:
-  // TODO(Roy Guo) Use better index data structures.
-  std::unordered_map<std::string, std::shared_ptr<IOBuf>> mem_index_;
-  std::unordered_map<std::string, uint64_t> lba_index_;
+  tbb::concurrent_hash_map<std::string, std::shared_ptr<IOBuf> > mem_index_;
+  //  std::unordered_map<std::string, std::shared_ptr<IOBuf>> mem_index_;
+
+  tbb::concurrent_hash_map<std::string, uint64_t> lba_index_;
+  //  std::unordered_map<std::string, uint64_t> lba_index_;
   std::mutex mtx_;
 };
 }  // namespace neodb

@@ -27,11 +27,11 @@ Status ZoneManager::Append(const std::string& key, const std::shared_ptr<IOBuf>&
 
   // TODO(Roy Guo) Move to background thread
   // If the WriteBuffer exceeds its capacity, we should create a new empty
-  // buffer and seal the old one as immutable buffer.
+  // buffer and seal the old one as immutable_ buffer.
   if (write_buffer->IsFull() || write_buffer->IsImmutable()) {
     write_buffer->MarkImmutable();
     {
-      // If the immutable buffer exceeds limit, we should wait.
+      // If the immutable_ buffer exceeds limit, we should wait.
       std::unique_lock<std::mutex> immutable_lk(immutable_buffer_mtx_);
       immutable_buffer_cv_.wait(immutable_lk, [&]() {
         return immutable_buffers_.size() < options_.immutable_buffer_num_;
@@ -39,7 +39,7 @@ Status ZoneManager::Append(const std::string& key, const std::shared_ptr<IOBuf>&
       immutable_buffers_.emplace_back(std::move(writable_buffers_[idx]));
       writable_buffers_[idx] = std::make_unique<WriteBuffer>(options_.write_buffer_size_);
       LOG(DEBUG,
-          "WriteBuffer {} is full, move to immutable buffer list, total immutable buffer num: {}",
+          "WriteBuffer {} is full, move to immutable_ buffer list, total immutable_ buffer num: {}",
           idx, immutable_buffers_.size());
     }
     immutable_buffer_cv_.notify_all();
@@ -47,7 +47,7 @@ Status ZoneManager::Append(const std::string& key, const std::shared_ptr<IOBuf>&
   return Status::OK();
 }
 
-// Try to pick a immutable write buffer and encode, flush it to disk.
+// Try to pick a immutable_ write buffer and encode, flush it to disk.
 void ZoneManager::FlushImmutableBuffers() {
   if (data_zone_ == nullptr || data_zone_->state_ == ZoneState::FULL) {
     auto s = SwitchDataZone();
@@ -66,20 +66,15 @@ void ZoneManager::FlushImmutableBuffers() {
       return;
     }
 
-    // steal one immutable buffer out of the list
+    // steal one immutable_ buffer out of the list
     immutable = std::move(immutable_buffers_.front());
     immutable_buffers_.pop_front();
-    LOG(DEBUG, "Take immutable buffer for flush success, immutable buffer size: {}",
+    LOG(DEBUG, "Take immutable_ buffer for flush success, immutable_ buffer size: {}",
         immutable_buffers_.size());
     immutable_buffer_cv_.notify_one();
   }
 
-  // use the `immutable` buffer for further encoding and flushing.
-  std::shared_ptr<IOBuf> encoded_buf = std::make_shared<IOBuf>(IO_FLUSH_SIZE);
-  uint32_t available_sz = IO_FLUSH_SIZE;
-  auto* ptr = encoded_buf->Buffer();
-  auto* cur_ptr = ptr;
-
+  auto encoded_buf = std::make_shared<IOBuf>(IO_FLUSH_SIZE);
   std::vector<uint64_t> lba_vec;
   auto* items = immutable->GetItems();
   for (int i = 0; i < items->size(); ++i) {
@@ -111,13 +106,8 @@ void ZoneManager::FlushImmutableBuffers() {
     lba_vec.push_back(lba);
     // Buffer the flushed key & lba and flush to the footer before zone close.
     data_zone_key_buffers_.emplace_back(item.first, lba);
-  }
-
-  // Update related index of the flushed keys
-  for (uint32_t i = 0; i < items->size(); ++i) {
-    auto& item = (*items)[i];
-    uint64_t lba = lba_vec[i];
-    index_->Update(item.first, lba);
+    // Buffer current IO buffer's related keys and LBA (not current data zone)
+    encoded_io_key_buf_.emplace_back(item.first, lba);
   }
 }
 
@@ -255,19 +245,25 @@ void ZoneManager::RecoverZoneStates(bool reuse_db) {
   }
 }
 
-Status ZoneManager::FlushAndResetIOBuffer(const std::shared_ptr<IOBuf>& buffer) {
-  buffer->AlignBufferSize();
-  auto s = io_handle_->Append(data_zone_, buffer);
+// The real device IO happens here.
+Status ZoneManager::FlushAndResetIOBuffer(const std::shared_ptr<IOBuf>& buf) {
+  buf->AlignBufferSize();
+  auto s = io_handle_->Append(data_zone_, buf);
   if (!s.ok()) {
-    LOG(ERROR, "Flush IO Buffer failed!");
+    LOG(ERROR, "Flush IO buffer failed: " + s.msg());
     return s;
   }
-  buffer->Reset();
+  // update current io buffer's related key index.
+  for (auto pair : encoded_io_key_buf_) {
+    index_->Update(pair.first, pair.second);
+  }
+  encoded_io_key_buf_.clear();
+  buf->Reset();
   return Status::OK();
 }
 
 Status ZoneManager::FinishCurrentDataZone() {
-  if (data_zone_ == nullptr) {
+  if (data_zone_ == nullptr || data_zone_key_buffers_.empty()) {
     return Status::IOError("No available data zone, finish zone skipped.");
   }
 
@@ -298,7 +294,7 @@ Status ZoneManager::FinishCurrentDataZone() {
 
   // update zone state and clear zone key buffer.
   data_zone_->state_ = ZoneState::FULL;
-  LOG(INFO, "zone finished success, id : {}, reminding immutable buffer: {}, writable buffer: {}",
+  LOG(INFO, "zone finished success, id : {}, reminding immutable_ buffer: {}, writable buffer: {}",
       data_zone_->id_, immutable_buffers_.size(), writable_buffers_.size());
   return Status::OK();
 }
@@ -308,7 +304,7 @@ void ZoneManager::GC() {
     return;
   }
   std::shared_ptr<Zone> target_zone = GC::SelectGCCandidate(zones_);
-  
+
   if (target_zone == nullptr) {
     LOG(ERROR, "No candidate zone for GC could be found!");
     return;

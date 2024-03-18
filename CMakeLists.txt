@@ -25,7 +25,7 @@ LIST(REMOVE_ITEM SOURCE_FILES ${TEST_FILES})
 
 # build neodb library
 ADD_LIBRARY(neodb STATIC ${SOURCE_FILES})
-TARGET_LINK_LIBRARIES(neodb spdlog gflags)
+TARGET_LINK_LIBRARIES(neodb spdlog gflags TBB::tbb)
 
 # build neodb test cases
 IF (WITH_TEST)
@@ -33,13 +33,13 @@ IF (WITH_TEST)
     ENABLE_TESTING()
     FOREACH (test_file ${TEST_FILES})
         GET_FILENAME_COMPONENT(exename ${test_file} NAME_WE)
-        ADD_EXECUTABLE(${CMAKE_PROJECT_NAME}_${exename} ${ARTIFACT_SUFFIX} ${test_file})
-        MESSAGE("build tests: ${CMAKE_PROJECT_NAME}_${exename}${ARTIFACT_SUFFIX}")
-        SET_TARGET_PROPERTIES(${CMAKE_PROJECT_NAME}_${exename} ${ARTIFACT_SUFFIX}
+        ADD_EXECUTABLE(${exename} ${ARTIFACT_SUFFIX} ${test_file})
+        MESSAGE("build tests: ${exename}${ARTIFACT_SUFFIX}")
+        SET_TARGET_PROPERTIES(${exename} ${ARTIFACT_SUFFIX}
                 PROPERTIES OUTPUT_NAME ${exename} ${ARTIFACT_SUFFIX}
         )
-        TARGET_LINK_LIBRARIES(${CMAKE_PROJECT_NAME}_${exename} ${ARTIFACT_SUFFIX} gtest gtest_main neodb)
-        ADD_TEST(NAME ${CMAKE_PROJECT_NAME}_${exename} COMMAND ${CMAKE_PROJECT_NAME}_${exename})
+        TARGET_LINK_LIBRARIES(${exename} ${ARTIFACT_SUFFIX} gtest gtest_main neodb)
+        ADD_TEST(NAME ${exename} COMMAND ${exename})
     ENDFOREACH ()
 ENDIF ()
 

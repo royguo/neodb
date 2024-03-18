@@ -12,6 +12,9 @@ if (NOT TARGET spdlog)
 endif ()
 
 if (NOT TARGET gflags)
-    MESSAGE("gfalgs included")
     ADD_SUBDIRECTORY(${CMAKE_CURRENT_SOURCE_DIR}/gflags)
+endif ()
+
+if (NOT TARGET oneTBB)
+    ADD_SUBDIRECTORY(${CMAKE_CURRENT_SOURCE_DIR}/oneTBB)
 endif ()

@@ -158,7 +158,7 @@ TEST_F(ZoneManagerTest, TryFlushTest) {
     EXPECT_EQ(std::get<Index::MemValue>(value)->Data(), item.second->Data());
   }
 
-  // After flush, the immutable buffer should be consumed.
+  // After flush, the immutable_ buffer should be consumed.
   zone_manager_->FlushImmutableBuffers();
   EXPECT_EQ(0, zone_manager_->GetImmutableBufferNum());
 
