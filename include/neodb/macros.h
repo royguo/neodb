@@ -6,7 +6,7 @@
 // Best IO size for the target device
 #define OPTIMIZED_READ_IO_SIZE (256UL << 10)
 
-#define IO_FLUSH_SIZE (512UL << 10)
+#define IO_FLUSH_SIZE (2UL << 20)
 
 #define MAX_KEY_SIZE (1024)
 

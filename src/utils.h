@@ -100,8 +100,13 @@ class NumberUtils {
 
 class HashUtils {
  public:
-  // TODO(Roy Guo) Use a simple hash & fast hash library
-  inline static uint64_t FastHash(const std::string& str) { return 1; }
+  inline static uint64_t FastHash(const std::string& str) {
+    uint64_t h = 0;
+    for (char c : str) {
+      h = (h << 5) + h + c;
+    }
+    return h;
+  }
 };
 
 class TimeUtils {

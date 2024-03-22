@@ -195,7 +195,8 @@ Status ZoneManager::ReadSingleItem(uint64_t offset, std::string* key,
   s = io_handle_->Read(offset - align, value);
   if (!s.ok()) {
     uint64_t zone_id = offset / options_.device_zone_capacity_;
-    LOG(ERROR, "Read failed, zone id: {}, zone state: {}", zone_id, zones_[zone_id]->state_);
+    LOG(ERROR, "Read failed, zone id: " + std::to_string(zone_id) +
+                   ", zone state: " + std::to_string(zones_[zone_id]->state_));
     return s;
   }
   *key = std::string(value->Buffer() + align + meta_sz, key_sz);

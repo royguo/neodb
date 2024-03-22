@@ -76,4 +76,6 @@ void FileIOHandle::Trim(int fd, uint64_t offset, uint64_t sz) {
 #endif
 }
 
+void FileIOHandle::AsyncWrite(uint64_t offset, const std::shared_ptr<IOBuf>& data,
+                              const std::function<void(uint64_t)>& cb) {}
 }  // namespace neodb

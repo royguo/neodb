@@ -8,6 +8,8 @@ namespace neodb {
 
 struct StoreOptions;
 
+enum DeviceType { kFile, kBlock };
+
 struct DBOptions {
   std::vector<StoreOptions> store_options_list_;
 };
@@ -15,13 +17,18 @@ struct DBOptions {
 // The options will be loaded on system start.
 // StoreOptions represents a single device's options.
 struct StoreOptions {
+  std::string name_ = "device1";
+
   std::string device_path_;
+
+  // The device path could be a sub-range of the hardware or file.
+  uint64_t device_offset_ = 0;
+
+  DeviceType type_ = kFile;
 
   uint64_t device_capacity_ = 10UL << 30;
 
   uint64_t device_zone_capacity_ = 20UL << 20;
-
-  uint32_t active_zone_number_ = 1;
 
   // Maximum capacity of each write buffer.
   // Total system memory usage:

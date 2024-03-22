@@ -24,12 +24,23 @@ namespace neodb::tools {
 class Benchmark {
  public:
   Benchmark() {
-    StoreOptions store_options;
-    store_options.device_path_ =
+    StoreOptions store_options1;
+    store_options1.name_ = "store1";
+    store_options1.device_path_ =
         FileUtils::GenerateRandomFile(device_prefix_, FLAGS_device_capacity_gb << 30);
-    store_options.device_zone_capacity_ = FLAGS_zone_capacity_mb << 20;
-    store_options.device_capacity_ = FLAGS_device_capacity_gb << 30;
-    db_options_.store_options_list_.emplace_back(std::move(store_options));
+    store_options1.device_zone_capacity_ = FLAGS_zone_capacity_mb << 20;
+    store_options1.device_capacity_ = FLAGS_device_capacity_gb << 30;
+
+    StoreOptions store_options2;
+    store_options2.name_ = "store2";
+    store_options2.device_path_ =
+        FileUtils::GenerateRandomFile(device_prefix_, FLAGS_device_capacity_gb << 30);
+    store_options2.device_zone_capacity_ = FLAGS_zone_capacity_mb << 20;
+    store_options2.device_capacity_ = FLAGS_device_capacity_gb << 30;
+
+    // init database with two devices.
+    db_options_.store_options_list_.emplace_back(std::move(store_options1));
+    db_options_.store_options_list_.emplace_back(std::move(store_options2));
     db_ = std::make_unique<NeoDB>(db_options_);
   }
 
