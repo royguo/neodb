@@ -1,4 +1,4 @@
-#include "io.h"
+#include "io_handle.h"
 
 #include <fcntl.h>
 #include <unistd.h>
@@ -9,7 +9,7 @@
 #include "utils.h"
 
 namespace neodb {
-class IOTest : public ::testing::Test {
+class IOHandleTest : public ::testing::Test {
  public:
   void SetUp() override {}
 
@@ -26,15 +26,13 @@ class IOTest : public ::testing::Test {
     return filename;
   }
 
-  static bool RemoveFile(const std::string& filename) {
-    return FileUtils::DeleteFile(filename);
-  }
+  static bool RemoveFile(const std::string& filename) { return FileUtils::DeleteFile(filename); }
 
  private:
   std::vector<std::string> filenames_;
 };
 
-TEST_F(IOTest, SingleWriteTest) {
+TEST_F(IOHandleTest, SingleWriteTest) {
   auto filename = CreateRandomFile(1UL << 30);
   FileIOHandle io_handle(filename, 1UL << 30, 256UL << 20);
 
@@ -48,7 +46,7 @@ TEST_F(IOTest, SingleWriteTest) {
   RemoveFile(filename);
 }
 
-TEST_F(IOTest, MultiWriteTest) {
+TEST_F(IOHandleTest, MultiWriteTest) {
   auto filename = CreateRandomFile(1UL << 30);
   FileIOHandle io_handle(filename, 1UL << 30, 256UL << 20);
   std::vector<std::string> values;

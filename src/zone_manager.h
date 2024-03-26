@@ -7,7 +7,7 @@
 #include <utility>
 
 #include "index.h"
-#include "io.h"
+#include "io_handle.h"
 #include "neodb/io_buf.h"
 #include "neodb/options.h"
 #include "neodb/status.h"

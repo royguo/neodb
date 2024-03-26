@@ -6,7 +6,7 @@
 #include <memory>
 
 #include "gtest/gtest.h"
-#include "io.h"
+#include "io_handle.h"
 
 namespace neodb {
 class UtilsTest : public ::testing::Test {

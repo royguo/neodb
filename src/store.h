@@ -4,7 +4,7 @@
 #include <vector>
 
 #include "index.h"
-#include "io.h"
+#include "io_handle.h"
 #include "neodb/options.h"
 #include "neodb/status.h"
 #include "zone_manager.h"
