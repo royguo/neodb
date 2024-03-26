@@ -12,6 +12,7 @@ namespace neodb {
 
 enum IORequestType { kAsyncWrite, kAsyncRead };
 struct IORequest {
+  // TODO change to a more generalize member variable instead of using posix aio data structure.
   struct aiocb aio_req_;
   IORequestType type_;
 
@@ -34,11 +35,13 @@ class IOEngine {
   // @return The total number of finished IO requests.
   virtual uint32_t Poll() = 0;
 
-  virtual uint32_t GetInFlightRequests() = 0;
+  virtual uint32_t GetInFlightRequests() { return requests_.size(); }
 
  protected:
   // maximum in-flight IO requests. If exceeded, we should wait.
   int io_depth_ = 20;
+
+  std::list<IORequest> requests_;
 };
 
 // aio.h wrapper
@@ -56,10 +59,25 @@ class PosixAIOEngine : public IOEngine {
   // TODO Probably we should check the event by their submission order?
   uint32_t Poll() override;
 
-  uint32_t GetInFlightRequests() override { return requests_.size(); }
-
  private:
   std::list<IORequest> requests_;
+};
+
+// A MockAIOEngine uses sync IO to emulate the async engine.
+class MockAIOEngine : public IOEngine {
+ public:
+  MockAIOEngine() = default;
+
+  ~MockAIOEngine() override = default;
+
+  Status AsyncWrite(int fd, uint64_t offset, const char* buffer, uint64_t size, char** cb) override;
+
+  Status AsyncRead(int fd, uint64_t offset, char* buffer, uint64_t size, char** cb) override;
+
+  // The mock aio engine does nothing in Poll().
+  uint32_t Poll() override;
+
+ private:
 };
 
 // libaio.h wrapper

@@ -13,7 +13,11 @@ inline std::string IORequest::GetTypeName(IORequestType type) {
 
 Status PosixAIOEngine::AsyncWrite(int fd, uint64_t offset, const char* buffer, uint64_t size,
                                   char** cb) {
-  // TODO Check io_depth
+  if (requests_.size() >= io_depth_) {
+    LOG(ERROR, "io depth full, please try again later, cur: {}", io_depth_);
+    return Status::Busy();
+  }
+
   requests_.push_back({.aio_req_ = {}, .type_ = kAsyncWrite});
   auto& request = requests_.back();
   memset(&request.aio_req_, 0, sizeof(struct aiocb));
@@ -33,6 +37,10 @@ Status PosixAIOEngine::AsyncWrite(int fd, uint64_t offset, const char* buffer, u
 }
 
 Status PosixAIOEngine::AsyncRead(int fd, uint64_t offset, char* buffer, uint64_t size, char** cb) {
+  if (requests_.size() >= io_depth_) {
+    LOG(ERROR, "io depth full, please try again later, cur: {}", io_depth_);
+    return Status::Busy();
+  }
   requests_.push_back({.aio_req_ = {}, .type_ = kAsyncRead});
   auto& request = requests_.back();
   memset(&request.aio_req_, 0, sizeof(struct aiocb));
@@ -71,6 +79,42 @@ uint32_t PosixAIOEngine::Poll() {
       ++it;
     }
   }
+  return cnt;
+}
+
+// This is a mocking async write which implemented by sync write.
+Status MockAIOEngine::AsyncWrite(int fd, uint64_t offset, const char* buffer, uint64_t size,
+                                 char** cb) {
+  if (requests_.size() >= io_depth_) {
+    LOG(ERROR, "io depth full, please try again later, cur: {}", io_depth_);
+    return Status::Busy();
+  }
+  requests_.push_back({.aio_req_ = {}, .type_ = kAsyncWrite});
+  auto ret = pwrite(fd, buffer, size, offset);
+  if (ret != size) {
+    LOG(ERROR, "pwrite error : {}, offset: {}, fd : {}", strerror(errno), offset, fd);
+    return Status::IOError();
+  }
+  return Status::OK();
+}
+
+Status MockAIOEngine::AsyncRead(int fd, uint64_t offset, char* buffer, uint64_t size, char** cb) {
+  if (requests_.size() >= io_depth_) {
+    LOG(ERROR, "io depth full, please try again later, cur: {}", io_depth_);
+    return Status::Busy();
+  }
+  requests_.push_back({.aio_req_ = {}, .type_ = kAsyncRead});
+  auto ret = pread(fd, buffer, size, offset);
+  if (ret != size) {
+    LOG(ERROR, "pread error : {}, offset: {}, fd : {}", strerror(errno), offset, fd);
+    return Status::IOError();
+  }
+  return Status::OK();
+}
+
+uint32_t MockAIOEngine::Poll() {
+  uint32_t cnt = requests_.size();
+  requests_.clear();
   return cnt;
 }
 
