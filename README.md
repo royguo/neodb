@@ -17,3 +17,4 @@ NeoDB is a generic multi-disk SSD Cache for disaggregate storage systems.
 - [ ] Block layer device manager 
 - [ ] Colored pointer for access frequency stats and GC
 - [ ] Async API with io_uring
+- [ ] Serve as a service

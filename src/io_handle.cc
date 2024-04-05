@@ -1,4 +1,5 @@
 #include "io_handle.h"
+
 #include "logger.h"
 #include "utils.h"
 
@@ -76,5 +77,11 @@ void FileIOHandle::Trim(int fd, uint64_t offset, uint64_t sz) {
 }
 
 void FileIOHandle::AsyncWrite(uint64_t offset, const std::shared_ptr<IOBuf>& data,
-                              const std::function<void(uint64_t)>& cb) {}
+                              const std::function<void(uint64_t)>& cb) {
+  auto s = aio_engine_->AsyncWrite(write_fd_, offset, data->Buffer(), data->Size(), nullptr);
+  if (!s.ok()) {
+    // TODO Retry
+    return;
+  }
+}
 }  // namespace neodb

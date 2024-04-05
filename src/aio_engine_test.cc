@@ -1,11 +1,10 @@
-#include "io_engine.h"
-
 #include <fcntl.h>
 #include <gtest/gtest.h>
 #include <unistd.h>
 
 #include <memory>
 
+#include "aio_engine.h"
 #include "utils.h"
 
 namespace neodb {
@@ -16,7 +15,7 @@ class IOEngineTest : public ::testing::Test {
   int write_fd_{};
   int read_fd_{};
   uint64_t file_size_ = 10 << 20;
-  std::unique_ptr<IOEngine> io_engine_;
+  std::unique_ptr<AIOEngine> io_engine_;
 
   void SetUp() override {
     test_file_ = CreateRandomFile(file_size_);

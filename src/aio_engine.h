@@ -19,12 +19,12 @@ struct IORequest {
   static inline std::string GetTypeName(IORequestType type);
 };
 
-// An IO Engine could be either io_uring, posix aio, libaio or spdk io.
-class IOEngine {
+// An AIO Engine could be either io_uring, posix aio, libaio or spdk.
+class AIOEngine {
  public:
-  IOEngine() = default;
+  AIOEngine() = default;
 
-  virtual ~IOEngine() = default;
+  virtual ~AIOEngine() = default;
 
   virtual Status AsyncWrite(int fd, uint64_t offset, const char* buffer, uint64_t size,
                             char** cb) = 0;
@@ -45,7 +45,7 @@ class IOEngine {
 };
 
 // aio.h wrapper
-class PosixAIOEngine : public IOEngine {
+class PosixAIOEngine : public AIOEngine {
  public:
   PosixAIOEngine() = default;
 
@@ -64,7 +64,7 @@ class PosixAIOEngine : public IOEngine {
 };
 
 // A MockAIOEngine uses sync IO to emulate the async engine.
-class MockAIOEngine : public IOEngine {
+class MockAIOEngine : public AIOEngine {
  public:
   MockAIOEngine() = default;
 
@@ -81,9 +81,9 @@ class MockAIOEngine : public IOEngine {
 };
 
 // libaio.h wrapper
-// class KernelAIOEngine : public IOEngine {};
+// class KernelAIOEngine : public AIOEngine {};
 
 // io_uring wrapper implementation
-// class IOUringEngine : public IOEngine {};
+// class IOUringEngine : public AIOEngine {};
 
 }  // namespace neodb
