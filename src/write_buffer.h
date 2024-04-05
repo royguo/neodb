@@ -3,6 +3,7 @@
 #include <unistd.h>
 
 #include <mutex>
+#include <vector>
 
 #include "neodb/io_buf.h"
 #include "neodb/status.h"

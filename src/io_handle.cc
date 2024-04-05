@@ -1,9 +1,16 @@
 #include "io_handle.h"
 
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+#include "neodb/io_buf.h"
+
 #include "logger.h"
 #include "utils.h"
 
 namespace neodb {
+
 Status FileIOHandle::Write(uint64_t offset, std::shared_ptr<IOBuf> data) {
   uint64_t ret = pwrite(write_fd_, data->Buffer(), data->Size(), int64_t(offset));
   if (ret != data->Size()) {
@@ -66,7 +73,7 @@ void FileIOHandle::ResetZone(const std::shared_ptr<Zone>& zone) {
 
 void FileIOHandle::Trim(int fd, uint64_t offset, uint64_t sz) {
 #ifndef __APPLE__
-  if (fstrim(fd, offset, sz) == -1) {
+  if (fallocate(fd, FALLOC_FL_PUNCH_HOLE, offset, sz) == -1) {
     LOG(ERROR, "fstrim failed, offset: {}, length: {}, error: {}", offset, sz,
         std::strerror(errno));
     return;

@@ -1,5 +1,9 @@
 #include "art.h"
+
+#include <cassert>
+
 #include "neodb/status.h"
+
 namespace neodb {
 class ARTWrapper {
  public:

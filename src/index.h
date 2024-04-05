@@ -5,6 +5,7 @@
 #include <mutex>
 #include <string>
 #include <utility>
+#include <variant>
 
 #include "algorithms/concurrent_index.h"
 #include "neodb/io_buf.h"

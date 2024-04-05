@@ -2,6 +2,7 @@
 
 #include <list>
 #include <vector>
+#include <functional>
 
 #include "neodb/io_buf.h"
 #include "write_buffer.h"

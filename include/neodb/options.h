@@ -2,6 +2,7 @@
 #include <unistd.h>
 
 #include <filesystem>
+#include <vector>
 #include <string>
 
 namespace neodb {
