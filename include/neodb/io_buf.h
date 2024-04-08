@@ -8,7 +8,7 @@
 #include <memory>
 #include <string>
 
-#include "macros.h"
+#include "definitions.h"
 
 namespace neodb {
 
