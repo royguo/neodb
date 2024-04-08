@@ -15,9 +15,9 @@ if (NOT TARGET gflags)
     ADD_SUBDIRECTORY(${CMAKE_CURRENT_SOURCE_DIR}/gflags)
 endif ()
 
-if (NOT TARGET oneTBB)
-    ADD_SUBDIRECTORY(${CMAKE_CURRENT_SOURCE_DIR}/oneTBB)
-endif ()
+#if (NOT TARGET oneTBB)
+#    ADD_SUBDIRECTORY(${CMAKE_CURRENT_SOURCE_DIR}/oneTBB)
+#endif ()
 
 #if (NOT TARGET folly)
 #    ExternalProject_Add(folly-project

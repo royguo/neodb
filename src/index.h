@@ -6,9 +6,9 @@
 #include <string>
 #include <utility>
 
+#include "algorithms/concurrent_index.h"
 #include "neodb/io_buf.h"
 #include "neodb/status.h"
-#include "oneapi/tbb/concurrent_hash_map.h"
 
 namespace neodb {
 
@@ -26,7 +26,10 @@ class Index {
   using ValueVariant = std::variant<MemValue, LBAValue>;
 
  public:
-  Index() = default;
+  Index() {
+    mem_index_ = std::make_unique<ConcurrentHashMap>(20);
+    lba_index_ = std::make_unique<ConcurrentArt>(20);
+  }
   ~Index() = default;
 
   void Put(const std::string& key, const ValueVariant& value);
@@ -42,10 +45,12 @@ class Index {
   bool ExistInLBA(const std::string& key);
 
  private:
-  tbb::concurrent_hash_map<std::string, std::shared_ptr<IOBuf> > mem_index_;
+  std::unique_ptr<ConcurrentHashMap> mem_index_;
+  //  tbb::concurrent_hash_map<std::string, std::shared_ptr<IOBuf> > mem_index_;
   //  std::unordered_map<std::string, std::shared_ptr<IOBuf>> mem_index_;
 
-  tbb::concurrent_hash_map<std::string, uint64_t> lba_index_;
+  std::unique_ptr<ConcurrentArt> lba_index_;
+  //  tbb::concurrent_hash_map<std::string, uint64_t> lba_index_;
   //  std::unordered_map<std::string, uint64_t> lba_index_;
   std::mutex mtx_;
 };
