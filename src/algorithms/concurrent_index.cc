@@ -1,6 +1,8 @@
 #include "concurrent_index.h"
 
+#include "neodb/histogram.h"
 #include "utils.h"
+
 namespace neodb {
 
 Status ConcurrentArt::Put(const std::string& key, uint64_t value) {

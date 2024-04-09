@@ -21,15 +21,12 @@ class UtilsTest : public ::testing::Test {
   }
 
   std::string CreateRandomFile(uint32_t sz) {
-    auto filename =
-        FileUtils::GenerateRandomFile("utils_test_file_", sz);
+    auto filename = FileUtils::GenerateRandomFile("utils_test_file_", sz);
     filenames_.emplace_back(filename);
     return filename;
   }
 
-  static bool RemoveFile(const std::string& filename) {
-    return FileUtils::DeleteFile(filename);
-  }
+  static bool RemoveFile(const std::string& filename) { return FileUtils::DeleteFile(filename); }
 
  private:
   std::vector<std::string> filenames_;

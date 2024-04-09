@@ -8,6 +8,7 @@
 #include <thread>
 
 #include "logger.h"
+#include "neodb/histogram.h"
 #include "utils.h"
 
 namespace neodb {
