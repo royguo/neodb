@@ -7,9 +7,3 @@
 [submodule "third/gflags"]
 	path = third/gflags
 	url = git@github.com:gflags/gflags.git
-[submodule "third/oneTBB"]
-	path = third/oneTBB
-	url = git@github.com:oneapi-src/oneTBB.git
-[submodule "third/folly"]
-	path = third/folly
-	url = git@github.com:facebook/folly.git
