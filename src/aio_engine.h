@@ -58,9 +58,6 @@ class PosixAIOEngine : public AIOEngine {
 
   // TODO Probably we should check the event by their submission order?
   uint32_t Poll() override;
-
- private:
-  std::list<IORequest> requests_;
 };
 
 // A MockAIOEngine uses sync IO to emulate the async engine.
@@ -76,8 +73,6 @@ class MockAIOEngine : public AIOEngine {
 
   // The mock aio engine does nothing in Poll().
   uint32_t Poll() override;
-
- private:
 };
 
 // libaio.h wrapper

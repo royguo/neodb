@@ -20,16 +20,18 @@ class IOEngineTest : public ::testing::Test {
   void SetUp() override {
     test_file_ = CreateRandomFile(file_size_);
 #ifdef __APPLE__
+    LOG(INFO, "Init Mocking AIO Engine");
     io_engine_ = std::make_unique<MockAIOEngine>();
 #else
+    LOG(INFO, "Init Posix AIO Engine");
     io_engine_ = std::make_unique<PosixAIOEngine>();
 #endif
-    write_fd_ = open(test_file_.c_str(), O_RDWR | O_CREAT, 0777);
+    write_fd_ = open(test_file_.c_str(), O_RDWR | O_CREAT | O_DIRECT, 0777);
     if (write_fd_ == -1) {
       LOG(ERROR, "Open writable file failed, error: {}", std::strerror(errno));
       abort();
     }
-    read_fd_ = open(test_file_.c_str(), O_RDONLY);
+    read_fd_ = open(test_file_.c_str(), O_RDONLY | O_DIRECT);
     if (read_fd_ == -1) {
       LOG(ERROR, "Open readonly file failed, error: {}", std::strerror(errno));
       abort();
@@ -40,6 +42,11 @@ class IOEngineTest : public ::testing::Test {
   void TearDown() override {
     int total = FileUtils::DeleteFilesByPrefix(".", file_prefix);
     LOG(INFO, "{} files was deleted", total);
+  }
+
+  void SyncRead(int fd, char* buf, uint32_t offset, uint32_t size) {
+    uint64_t ret = pread(fd, (void*)buf, size, offset);
+    ASSERT_TRUE(ret > 0);
   }
 
   std::string CreateRandomFile(uint32_t sz) {
@@ -56,14 +63,18 @@ TEST_F(IOEngineTest, MultipleAIOReadWriteTest) {
   uint64_t page_size = 4UL << 10;
   uint32_t total_requests = 6;
 
-  // Write Request
+  // Write
+  char* buffers[total_requests];
   for (int i = 0; i < total_requests; ++i) {
+    posix_memalign((void**)&buffers[i], page_size, page_size);
+    memset(buffers[i], 0, page_size);
     std::string data = std::to_string('a' + i);
-    auto s = io_engine_->AsyncWrite(write_fd_, i * page_size, data.c_str(), data.size(), nullptr);
+    memcpy(buffers[i], data.c_str(), data.size());
+    auto s = io_engine_->AsyncWrite(write_fd_, i * page_size, buffers[i], page_size, nullptr);
     EXPECT_TRUE(s.ok());
   }
 
-  // POLL result out
+  // Poll
   uint32_t cnt = 0;
   while (cnt < total_requests) {
     cnt += io_engine_->Poll();
@@ -71,14 +82,22 @@ TEST_F(IOEngineTest, MultipleAIOReadWriteTest) {
   EXPECT_EQ(cnt, total_requests);
   EXPECT_EQ(io_engine_->GetInFlightRequests(), 0);
 
-  // Read Request
+  // Sync Read
   char* buf = nullptr;
   posix_memalign((void**)&buf, page_size, page_size);
   for (int i = 0; i < total_requests; ++i) {
-    auto s = io_engine_->AsyncRead(read_fd_, i * page_size, buf, page_size, nullptr);
-    ASSERT_TRUE(s.ok());
+    memset(buf, 0, page_size);
+    SyncRead(read_fd_, buf, i * page_size, page_size);
     std::string data = std::to_string('a' + i);
-    EXPECT_EQ(data.at(0), buf[0]);
+    EXPECT_EQ(data, std::string(buf, data.size()));
+  }
+  free(buf);
+
+  // Async Read & Poll
+  for (int i = 0; i < total_requests; ++i) {
+    memset(buffers[i], 0, page_size);
+    auto s = io_engine_->AsyncRead(read_fd_, i * page_size, buffers[i], page_size, nullptr);
+    ASSERT_TRUE(s.ok());
   }
   EXPECT_EQ(io_engine_->GetInFlightRequests(), total_requests);
 
@@ -87,8 +106,12 @@ TEST_F(IOEngineTest, MultipleAIOReadWriteTest) {
   while (cnt < total_requests) {
     cnt += io_engine_->Poll();
   }
-
   EXPECT_EQ(cnt, total_requests);
-  delete buf;
+
+  for (int i = 0; i < total_requests; ++i) {
+    std::string data = std::to_string('a' + i);
+    EXPECT_EQ(data, std::string(buffers[i], data.size()));
+    free(buffers[i]);
+  }
 }
 }  // namespace neodb

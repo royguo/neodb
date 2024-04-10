@@ -51,7 +51,11 @@ struct LoggerOptions {
   bool console_log_ = true;
   bool file_log_ = false;
   std::filesystem::path log_path_;
+#ifdef NDEBUG
   std::string level_ = "info";
+#else
+  std::string level_ = "debug";
+#endif
   uint32_t rotation_size_m_ = 1000;
   uint32_t max_age_days_ = 7;
   uint32_t max_backups_ = 3;
