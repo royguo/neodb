@@ -39,4 +39,3 @@ ENV CXX ${CLANG_HOME}/bin/clang++
 ENV PATH ${CLANG_HOME}/bin:${PATH}
 
 ENV ASAN_OPTIONS detect_container_overflow=0:detect_odr_violation=0
-

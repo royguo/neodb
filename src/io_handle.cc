@@ -12,9 +12,10 @@
 namespace neodb {
 
 Status FileIOHandle::Write(uint64_t offset, std::shared_ptr<IOBuf> data) {
-  uint64_t ret = pwrite(write_fd_, data->Buffer(), data->Size(), int64_t(offset));
-  if (ret != data->Size()) {
-    LOG(ERROR, "Failed to write data: {} ", std::strerror(errno));
+  uint32_t buf_sz = NumberUtils::AlignTo(data->Size(), IO_PAGE_SIZE);
+  uint64_t ret = pwrite(write_fd_, data->Buffer(), buf_sz, int64_t(offset));
+  if (ret != buf_sz) {
+    LOG(ERROR, "Failed to write data, ret: {}, msg: {} ", ret, std::strerror(errno));
     return Status::IOError("Write failed!");
   }
   return Status::OK();

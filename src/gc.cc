@@ -32,7 +32,7 @@ std::shared_ptr<Zone> GC::SelectGCCandidate(const std::vector<std::shared_ptr<Zo
     uint64_t zone_age_score =
         (now - zone->finish_time_us_) * weights[kZoneAge] / (oldest_finish_age + 1) / 100;
     uint64_t expired_bytes_score =
-        (zone->expired_bytes_ * weights[kExpiredBytes]) / max_expired_bytes / 100;
+        (zone->expired_bytes_ * weights[kExpiredBytes]) / (max_expired_bytes + 1) / 100;
     uint64_t score = zone_age_score + expired_bytes_score;
     if (score >= max_score) {
       max_score = score;
