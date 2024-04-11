@@ -9,6 +9,12 @@ NeoDB is a generic multi-disk SSD Cache for disaggregate storage systems.
   - Close to 1X end-to-end write amplification (including the SSD internal GC)
 - Space Utility
   - Close to 1X space amplification thus we are able to use up to 99% disk space.
+- NeoFS Core
+  - NeoDB is the low-level storage engine for NeoFS (not open-source yet)
+
+
+![NeoDB and NeoFS](https://github.com/royguo/neodb/blob/main/docs/neodb.png)
+
 
 # Features
 - [x] Blocking API with concurrent access support.
