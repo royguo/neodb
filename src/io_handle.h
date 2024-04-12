@@ -18,6 +18,7 @@
 #include "neodb/io_buf.h"
 #include "neodb/status.h"
 #include "zone.h"
+#include "utils.h"
 
 namespace neodb {
 class IOHandle {
@@ -58,14 +59,9 @@ class FileIOHandle : public IOHandle {
       LOG(ERROR, "FileIOHandle init failed, filename: {}, size: {}", filename_, file_size_);
       abort();
     }
-#ifdef __APPLE__
-    write_fd_ = open(filename_.c_str(), O_RDWR | O_SYNC | O_CREAT, S_IRUSR | S_IWUSR);
-    fcntl(write_fd_, F_NOCACHE, 1);
-    aio_engine_ = std::make_unique<MockAIOEngine>();
-#else
-    write_fd_ = open(filename_.c_str(), O_RDWR | O_DIRECT | O_CREAT, S_IRUSR | S_IWUSR);
-    aio_engine_ = std::make_unique<PosixAIOEngine>();
-#endif
+    write_fd_ = FileUtils::OpenDirectWritableFile(filename_);
+    aio_engine_.reset(IOEngineUtils::GetInstance());
+
     if (write_fd_ == -1) {
       LOG(ERROR, "open writable file failed: {}", std::strerror(errno));
       close(write_fd_);

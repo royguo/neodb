@@ -13,6 +13,7 @@
 #include <string>
 
 #include "logger.h"
+#include "aio_engine.h"
 
 #include "neodb/tiny_dir.h"
 
@@ -78,6 +79,30 @@ class FileUtils {
     }
     tinydir_close(&d);
     return total;
+  }
+
+  static int OpenDirectWritableFile(const std::string& filename) {
+    int write_fd_ = -1;
+#ifdef __APPLE__
+    write_fd_ = open(filename.c_str(), O_RDWR | O_SYNC | O_CREAT, S_IRUSR | S_IWUSR);
+    fcntl(write_fd_, F_NOCACHE, 1);
+#else
+    write_fd_ = open(filename.c_str(), O_RDWR | O_DIRECT | O_CREAT, S_IRUSR | S_IWUSR);
+#endif
+    return write_fd_;
+  }
+};
+
+class IOEngineUtils {
+ public:
+  static AIOEngine* GetInstance() {
+    AIOEngine* engine;
+#ifdef __APPLE__
+    engine = new MockAIOEngine();
+#else
+    engine = new PosixAIOEngine();
+#endif
+    return engine;
   }
 };
 
