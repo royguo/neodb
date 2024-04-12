@@ -5,13 +5,16 @@
 #include <unistd.h>
 
 #include <cassert>
-#include <filesystem>
+#include <cstdio>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <random>
 #include <string>
 
 #include "logger.h"
+
+#include "neodb/tiny_dir.h"
 
 namespace neodb {
 class StringUtils {
@@ -47,22 +50,33 @@ class FileUtils {
   }
 
   static bool DeleteFile(const std::string& filename) {
-    if (std::filesystem::exists(filename) && std::filesystem::is_regular_file(filename)) {
-      std::filesystem::remove(filename);
-      return true;
+    if (FileExist(filename)) {
+      return std::remove(filename.c_str()) == 0;
     }
     return false;
   }
 
+  static bool FileExist(const std::string& filename) {
+    struct stat buffer;
+    return (stat(filename.c_str(), &buffer) == 0);
+  }
+
   // Delete all files in target directory
   static int DeleteFilesByPrefix(const std::string& dir, const std::string& prefix) {
+    tinydir_dir d;
+    tinydir_open(&d, dir.c_str());
     int total = 0;
-    for (const auto& entry : std::filesystem::directory_iterator(dir)) {
-      if (entry.is_regular_file() && entry.path().filename().string().find(prefix) == 0) {
-        std::filesystem::remove(entry);
+    while (d.has_next) {
+      tinydir_file file;
+      tinydir_readfile(&d, &file);
+
+      if(!file.is_dir && strncmp(file.name, prefix.c_str(), prefix.size()) == 0) {
+        std::remove(file.name);
         total++;
       }
+      tinydir_next(&d);
     }
+    tinydir_close(&d);
     return total;
   }
 };

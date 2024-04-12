@@ -1,5 +1,7 @@
 #include "aio_engine.h"
 
+#include <aio.h>
+
 namespace neodb {
 inline std::string IORequest::GetTypeName(IORequestType type) {
   switch (type) {
@@ -53,8 +55,8 @@ Status PosixAIOEngine::AsyncRead(int fd, uint64_t offset, char* buffer, uint64_t
   int ret = aio_read(&request.aio_req_);
   // If request submission failed
   if (ret == -1) {
-    LOG(ERROR, "aio_read failed, ret: {}, err: {}, offset: {}, sz: {}",
-        ret, strerror(errno), offset, size);
+    LOG(ERROR, "aio_read failed, ret: {}, err: {}, offset: {}, sz: {}", ret, strerror(errno),
+        offset, size);
     requests_.pop_back();
     return Status::IOError("aio read failed!");
   }
@@ -83,8 +85,8 @@ uint32_t PosixAIOEngine::Poll() {
 
     // If the request has an error.
     if (err_value != 0) {
-      LOG(ERROR, "I/O failed, aio_error: {}, errmsg: {}, offset: {}",
-                  err_value, strerror(errno), req.aio_req_.aio_offset);
+      LOG(ERROR, "I/O failed, aio_error: {}, errmsg: {}, offset: {}", err_value, strerror(errno),
+          req.aio_req_.aio_offset);
       it = requests_.erase(it);
       continue;
     }
@@ -92,8 +94,8 @@ uint32_t PosixAIOEngine::Poll() {
     // If there's no operation error occurs, we should check the return value.
     int ret_value = aio_return(&req.aio_req_);
     if (ret_value == -1) {
-      LOG(ERROR, "I/O failed, aio_return: {}, errmsg: {}, offset: {}",
-                  ret_value, strerror(errno), req.aio_req_.aio_offset);
+      LOG(ERROR, "I/O failed, aio_return: {}, errmsg: {}, offset: {}", ret_value, strerror(errno),
+          req.aio_req_.aio_offset);
       it = requests_.erase(it);
       continue;
     }

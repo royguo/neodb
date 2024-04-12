@@ -1,7 +1,6 @@
 #pragma once
 #include <unistd.h>
 
-#include <filesystem>
 #include <vector>
 #include <string>
 
@@ -50,7 +49,7 @@ struct StoreOptions {
 struct LoggerOptions {
   bool console_log_ = true;
   bool file_log_ = false;
-  std::filesystem::path log_path_;
+  std::string log_path_;
 #ifdef NDEBUG
   std::string level_ = "info";
 #else

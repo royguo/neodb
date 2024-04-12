@@ -15,6 +15,24 @@ if (NOT TARGET gflags)
     ADD_SUBDIRECTORY(${CMAKE_CURRENT_SOURCE_DIR}/gflags)
 endif ()
 
+
+# boost filesystem
+#if (NOT TARGET boost-filesystem)
+#  ExternalProject_Add(boost-filesystem-project
+#    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/boost/libs/filesystem
+#    BUILD_IN_SOURCE 1
+#    BUILD_COMMAND "./b2" 
+#  )
+#
+#  ADD_LIBRARY(boost-filesystem STATIC IMPORTED GLOBAL)
+#  ADD_DEPENDENCIES(boost-filesystem boost-filesystem-project)
+#  SET_TARGET(boost-filesystem PROPERTIES
+#            IMPORTED_LOCATION ${CMAKE_BINARY_DIR}/lib/libboost_filesystem.a
+#            INCLUDE_DIRECTORIES ${CMAKE_BINARY_DIR}/include
+#            POSITION_INDEPENDENT_CODE ON
+#    )
+#endif()
+
 #if (NOT TARGET oneTBB)
 #    ADD_SUBDIRECTORY(${CMAKE_CURRENT_SOURCE_DIR}/oneTBB)
 #endif ()

@@ -25,7 +25,7 @@ LIST(REMOVE_ITEM SOURCE_FILES ${TEST_FILES})
 
 # build neodb library
 ADD_LIBRARY(neodb STATIC ${SOURCE_FILES})
-TARGET_LINK_LIBRARIES(neodb spdlog gflags)
+TARGET_LINK_LIBRARIES(neodb spdlog gflags rt)
 
 # build neodb test cases
 IF (WITH_TEST)
