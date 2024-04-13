@@ -231,9 +231,9 @@ TEST_F(ZoneManagerTest, ExceedsDeviceCapacityTest) {
 }
 
 TEST_F(ZoneManagerTest, LayoutTest) {
-  // one active one single zone
-  options_.device_capacity_ = 1000UL << 20;
-  options_.device_zone_capacity_ = 800UL << 20;
+  // one single active zone for this device
+  options_.device_capacity_ = 100UL << 20;
+  options_.device_zone_capacity_ = 80UL << 20;
 
   LOG(INFO, "resize device and zone size....");
   // reset zone_manager

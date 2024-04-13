@@ -70,6 +70,8 @@ TEST_F(IOHandleTest, MultiWriteTest) {
   RemoveFile(filename);
 }
 
+TEST_F(IOHandleTest, AsyncWriteTest) {}
+
 int main(int argc, char** argv) {
   // testing::InstallFailureSignalHandler();
   testing::InitGoogleTest(&argc, argv);

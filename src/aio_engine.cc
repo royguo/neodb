@@ -14,7 +14,7 @@ inline std::string IORequest::GetTypeName(IORequestType type) {
 }
 
 Status PosixAIOEngine::AsyncWrite(int fd, uint64_t offset, const char* buffer, uint64_t size,
-                                  char** cb) {
+                                  const std::function<void(uint64_t)>& cb) {
   if (requests_.size() >= io_depth_) {
     LOG(ERROR, "io depth full, please try again later, cur: {}", io_depth_);
     return Status::Busy();
@@ -27,6 +27,7 @@ Status PosixAIOEngine::AsyncWrite(int fd, uint64_t offset, const char* buffer, u
   request.aio_req_.aio_buf = (void*)buffer;
   request.aio_req_.aio_nbytes = size;
   request.aio_req_.aio_fildes = fd;
+  request.cb_ = cb;
 
   int ret = aio_write(&request.aio_req_);
   if (ret == -1) {
@@ -71,19 +72,21 @@ uint32_t PosixAIOEngine::Poll() {
     auto& req = *it;
     int err_value = aio_error(&req.aio_req_);
 
-    // If the request was canceld, we remove & skip it.
+    // If the request was canceled, we remove & skip it.
+    // TODO Cancel all following requests
     if (err_value == ECANCELED) {
       it = requests_.erase(it);
       continue;
     }
 
-    // If the request is not yet completed, we skip it.
+    // If the request is not yet completed, we shouldn't skip it because we need to
+    // keep the completion order.
     if (err_value == EINPROGRESS) {
-      ++it;
-      continue;
+      break;
     }
 
     // If the request has an error.
+    // TODO Cancel all following requests
     if (err_value != 0) {
       LOG(ERROR, "I/O failed, aio_error: {}, errmsg: {}, offset: {}", err_value, strerror(errno),
           req.aio_req_.aio_offset);
@@ -101,6 +104,9 @@ uint32_t PosixAIOEngine::Poll() {
     }
 
     // Otherwise, the operation success
+    if(it->cb_ != nullptr) {
+      it->cb_(it->aio_req_.aio_offset);
+    }
     it = requests_.erase(it);
     cnt++;
   }
@@ -109,7 +115,7 @@ uint32_t PosixAIOEngine::Poll() {
 
 // This is a mocking async write which implemented by sync write.
 Status MockAIOEngine::AsyncWrite(int fd, uint64_t offset, const char* buffer, uint64_t size,
-                                 char** cb) {
+                                 const std::function<void(uint64_t)>& cb) {
   if (requests_.size() >= io_depth_) {
     LOG(ERROR, "io depth full, please try again later, cur: {}", io_depth_);
     return Status::Busy();

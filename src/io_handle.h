@@ -27,8 +27,9 @@ class IOHandle {
 
   virtual Status Write(uint64_t offset, std::shared_ptr<IOBuf> data) = 0;
 
-  virtual void AsyncWrite(uint64_t offset, const std::shared_ptr<IOBuf>& data,
-                          const std::function<void(uint64_t)>& cb) = 0;
+  virtual Status AsyncWrite(uint64_t offset,
+                            const std::shared_ptr<IOBuf>& data,
+                            const std::function<void(uint64_t)>& cb) = 0;
 
   // Read certain amount of data and append to the data buffer.
   // The data buffer is pre-allocated, and its free space should be enough.
@@ -39,6 +40,10 @@ class IOHandle {
 
   // Append data to the target zone.
   virtual Status Append(const std::shared_ptr<Zone>& zone, std::shared_ptr<IOBuf> data) = 0;
+
+  virtual Status AsyncAppend(const std::shared_ptr<Zone>& zone,
+                             std::shared_ptr<IOBuf> data,
+                             const std::function<void(uint64_t)>& cb) = 0;
 
   virtual std::vector<std::shared_ptr<Zone>> GetDeviceZones() = 0;
 
@@ -82,14 +87,20 @@ class FileIOHandle : public IOHandle {
 
   Status Write(uint64_t offset, std::shared_ptr<IOBuf> data) override;
 
-  void AsyncWrite(uint64_t offset, const std::shared_ptr<IOBuf>& data,
-                  const std::function<void(uint64_t)>& cb) override;
+  Status AsyncWrite(uint64_t offset,
+                    const std::shared_ptr<IOBuf>& data,
+                    const std::function<void(uint64_t)>& cb) override;
 
   Status ReadAppend(uint64_t offset, uint32_t size, std::shared_ptr<IOBuf> data) override;
 
   Status Read(uint64_t offset, std::shared_ptr<IOBuf> data) override;
 
   Status Append(const std::shared_ptr<Zone>& zone, std::shared_ptr<IOBuf> data) override;
+
+
+  Status AsyncAppend(const std::shared_ptr<Zone>& zone,
+                     std::shared_ptr<IOBuf> data,
+                     const std::function<void(uint64_t)>& cb) override;
 
   std::vector<std::shared_ptr<Zone>> GetDeviceZones() override;
 

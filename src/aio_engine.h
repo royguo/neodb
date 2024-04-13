@@ -15,6 +15,7 @@ struct IORequest {
   // TODO change to a more generalize member variable instead of using posix aio data structure.
   struct aiocb aio_req_;
   IORequestType type_;
+  std::function<void(uint64_t)> cb_;
 
   static inline std::string GetTypeName(IORequestType type);
 };
@@ -27,7 +28,7 @@ class AIOEngine {
   virtual ~AIOEngine() = default;
 
   virtual Status AsyncWrite(int fd, uint64_t offset, const char* buffer, uint64_t size,
-                            char** cb) = 0;
+                            const std::function<void(uint64_t)>& cb) = 0;
 
   virtual Status AsyncRead(int fd, uint64_t offset, char* buffer, uint64_t size, char** cb) = 0;
 
@@ -36,6 +37,8 @@ class AIOEngine {
   virtual uint32_t Poll() = 0;
 
   virtual uint32_t GetInFlightRequests() { return requests_.size(); }
+
+  virtual bool Busy() { return requests_.size() >= io_depth_; }
 
  protected:
   // maximum in-flight IO requests. If exceeded, we should wait.
@@ -49,10 +52,15 @@ class PosixAIOEngine : public AIOEngine {
  public:
   PosixAIOEngine() = default;
 
-  ~PosixAIOEngine() override = default;
+  ~PosixAIOEngine() override {
+    while (Busy()) {
+      Poll();
+    }
+  }
 
   // TODO Zero-copy to DMA memory.
-  Status AsyncWrite(int fd, uint64_t offset, const char* buffer, uint64_t size, char** cb) override;
+  Status AsyncWrite(int fd, uint64_t offset, const char* buffer, uint64_t size,
+                    const std::function<void(uint64_t)>& cb) override;
 
   Status AsyncRead(int fd, uint64_t offset, char* buffer, uint64_t size, char** cb) override;
 
@@ -67,7 +75,8 @@ class MockAIOEngine : public AIOEngine {
 
   ~MockAIOEngine() override = default;
 
-  Status AsyncWrite(int fd, uint64_t offset, const char* buffer, uint64_t size, char** cb) override;
+  Status AsyncWrite(int fd, uint64_t offset, const char* buffer, uint64_t size,
+                    const std::function<void(uint64_t)>& cb) override;
 
   Status AsyncRead(int fd, uint64_t offset, char* buffer, uint64_t size, char** cb) override;
 

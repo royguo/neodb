@@ -21,6 +21,25 @@ Status FileIOHandle::Write(uint64_t offset, std::shared_ptr<IOBuf> data) {
   return Status::OK();
 }
 
+Status FileIOHandle::AsyncWrite(uint64_t offset,
+                                const std::shared_ptr<IOBuf>& data,
+                                const std::function<void(uint64_t)>& cb) {
+  // If the engine's io depth is full.
+  while (aio_engine_->Busy()) {
+    aio_engine_->Poll();
+  }
+
+  uint32_t buf_sz = NumberUtils::AlignTo(data->Size(), IO_PAGE_SIZE);
+  auto s = aio_engine_->AsyncWrite(write_fd_,offset, data->Buffer(), buf_sz, cb);
+
+  if (!s.ok()) {
+    LOG(ERROR, "Failed to write data, code: {}, msg: {} ", s.code(), s.msg());
+    return Status::IOError("Write failed!");
+  }
+  aio_engine_->Poll();
+  return Status::OK();
+}
+
 Status FileIOHandle::ReadAppend(uint64_t offset, uint32_t size, std::shared_ptr<IOBuf> data) {
   assert(data->AvailableSize() >= size);
   uint64_t ret = pread(read_fd_, data->Buffer(), size, int64_t(offset));
@@ -47,6 +66,17 @@ Status FileIOHandle::Read(uint64_t offset, std::shared_ptr<IOBuf> data) {
 Status FileIOHandle::Append(const std::shared_ptr<Zone>& zone, std::shared_ptr<IOBuf> data) {
   auto s = Write(zone->wp_, data);
   zone->wp_ += data->Size();
+  return s;
+}
+
+Status FileIOHandle::AsyncAppend(const std::shared_ptr<Zone>& zone,
+                                 std::shared_ptr<IOBuf> data,
+                                 const std::function<void(uint64_t)>& cb) {
+  auto s = AsyncWrite(zone->wp_, data, [&](uint64_t offset) {
+    assert(zone->wp_ == offset);
+    zone->wp_ += data->Size();
+  });
+
   return s;
 }
 
@@ -84,12 +114,4 @@ void FileIOHandle::Trim(int fd, uint64_t offset, uint64_t sz) {
 #endif
 }
 
-void FileIOHandle::AsyncWrite(uint64_t offset, const std::shared_ptr<IOBuf>& data,
-                              const std::function<void(uint64_t)>& cb) {
-  auto s = aio_engine_->AsyncWrite(write_fd_, offset, data->Buffer(), data->Size(), nullptr);
-  if (!s.ok()) {
-    // TODO Retry
-    return;
-  }
-}
 }  // namespace neodb
