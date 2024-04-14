@@ -21,8 +21,8 @@ class IOBuf {
   // Allocate memory for future use.
   explicit IOBuf(uint32_t capacity) : capacity_(capacity) {
     // capacity aligned to page size.
-    capacity = (capacity + IO_PAGE_SIZE - 1) / IO_PAGE_SIZE * IO_PAGE_SIZE;
-    int ret = posix_memalign((void**)&buf_, IO_PAGE_SIZE, capacity);
+    capacity_ = (capacity + IO_PAGE_SIZE - 1) / IO_PAGE_SIZE * IO_PAGE_SIZE;
+    int ret = posix_memalign((void**)&buf_, IO_PAGE_SIZE, capacity_);
     if (ret != 0) {
       // TODO error handling?
     }
