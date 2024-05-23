@@ -6,9 +6,11 @@
 #include "spdlog/sinks/stdout_color_sinks.h"
 
 namespace neodb {
-void InitLogger(const LoggerOptions& options) {
+LoggerInitializer::LoggerInitializer() {
+  const LoggerOptions& options {};
+  SPDLOG_INFO("logger initializing, log level: {}", options.level_);
   auto level = spdlog::level::from_str(options.level_);
-  std::string path = options.log_path_.c_str();
+  std::string path = options.log_path_;
 
   auto create_rotating_logger = [&options, level, path]() {
     // rotating logger
@@ -27,24 +29,26 @@ void InitLogger(const LoggerOptions& options) {
   std::shared_ptr<spdlog::sinks::rotating_file_sink_mt> rotating_logger;
   std::shared_ptr<spdlog::sinks::stdout_color_sink_mt> console_logger;
 
-  spdlog::sinks_init_list sinks;
-  if (!path.empty() && options.file_log_ && options.console_log_) {
-    rotating_logger = create_rotating_logger();
-    console_logger = create_console_logger();
-    sinks = {rotating_logger, console_logger};
-  } else if (!path.empty() && options.file_log_) {
-    rotating_logger = create_rotating_logger();
-    sinks = {rotating_logger};
-  } else {
-    console_logger = create_console_logger();
-    sinks = {console_logger};
+  std::vector<spdlog::sink_ptr> sinks;
+  if (!path.empty() && options.file_log_) {
+    sinks.push_back(create_rotating_logger());
+  }
+  if (options.console_log_) {
+    sinks.push_back(create_console_logger());
   }
 
-  auto logger = std::make_shared<spdlog::logger>("neodb", sinks);
-  logger->set_level(spdlog::level::debug);
+  auto combined_logger =
+      std::make_shared<spdlog::logger>("neodb_logger", begin(sinks), end(sinks));
+  spdlog::register_logger(combined_logger);
+  spdlog::set_default_logger(combined_logger);
+  combined_logger->set_level(level);
+  combined_logger->set_pattern("[%Y-%m-%H T%T.%e][%t][%l][%s:%#] %v");
 
-  spdlog::set_default_logger(logger);
-  spdlog::set_pattern("[%Y-%m-%H T%T.%e][%t][%l][%s:%#] %v");
+//  auto logger = std::make_share/*d<spdlog::logger>("neodb", sinks);
+//  logger->set_level(spdlog::level::debug*/);
+
+//  spdlog::set_default_logger(logger);
+//  spdlog::set_pattern("[%Y-%m-%H T%T.%e][%t][%l][%s:%#] %v");
   SPDLOG_INFO("logger initialized, log level: {}", options.level_);
 }
 

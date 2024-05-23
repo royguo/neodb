@@ -14,7 +14,7 @@
 namespace neodb {
 class ConcurrentIndexTest : public ::testing::Test {
  public:
-  void SetUp() override {}
+  void SetUp() override { InitLogger(); }
 
   void TearDown() override {}
 };

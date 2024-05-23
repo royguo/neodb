@@ -25,7 +25,13 @@ LIST(REMOVE_ITEM SOURCE_FILES ${TEST_FILES})
 
 # build neodb library
 ADD_LIBRARY(neodb STATIC ${SOURCE_FILES})
-TARGET_LINK_LIBRARIES(neodb spdlog gflags rt)
+IF (APPLE)
+  MESSAGE("MacOS: Compile without librt")
+    TARGET_LINK_LIBRARIES(neodb spdlog gflags)
+ELSE ()
+    MESSAGE("Linux: Compile with librt")
+    TARGET_LINK_LIBRARIES(neodb spdlog gflags rt)
+ENDIF ()
 
 # build neodb test cases
 IF (WITH_TEST)

@@ -11,7 +11,7 @@
 namespace neodb {
 class CodecTest : public ::testing::Test {
  public:
-  void SetUp() override {}
+  void SetUp() override { InitLogger(); }
 
   void TearDown() override {}
 };
@@ -33,10 +33,9 @@ TEST_F(CodecTest, GenerateDataZoneMetaTest) {
   EXPECT_EQ(meta->Capacity(), 8UL << 10);
 
   std::vector<std::pair<std::string, uint64_t>> pairs;
-  Codec::DecodeDataZoneMeta(meta->Buffer(), meta->Size(),
-                            [&](const std::string& key, uint64_t lba) {
-                              pairs.emplace_back(key, lba);
-                            });
+  Codec::DecodeDataZoneMeta(
+      meta->Buffer(), meta->Size(),
+      [&](const std::string& key, uint64_t lba) { pairs.emplace_back(key, lba); });
   EXPECT_EQ(pairs[0].first, "a");
   EXPECT_EQ(pairs[0].second, 1);
   EXPECT_EQ(pairs[1].first, "b");

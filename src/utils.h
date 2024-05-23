@@ -12,9 +12,8 @@
 #include <random>
 #include <string>
 
-#include "logger.h"
 #include "aio_engine.h"
-
+#include "logger.h"
 #include "neodb/tiny_dir.h"
 
 namespace neodb {
@@ -71,7 +70,7 @@ class FileUtils {
       tinydir_file file;
       tinydir_readfile(&d, &file);
 
-      if(!file.is_dir && strncmp(file.name, prefix.c_str(), prefix.size()) == 0) {
+      if (!file.is_dir && strncmp(file.name, prefix.c_str(), prefix.size()) == 0) {
         std::remove(file.name);
         total++;
       }
@@ -81,15 +80,17 @@ class FileUtils {
     return total;
   }
 
-  static int OpenDirectWritableFile(const std::string& filename) {
-    int write_fd_ = -1;
+  static int OpenDirectFile(const std::string& filename, bool read_only = false) {
+    int fd_ = -1;
 #ifdef __APPLE__
-    write_fd_ = open(filename.c_str(), O_RDWR | O_SYNC | O_CREAT, S_IRUSR | S_IWUSR);
-    fcntl(write_fd_, F_NOCACHE, 1);
+    fd_ =
+        open(filename.c_str(), read_only ? O_RDONLY : O_RDWR | O_SYNC | O_CREAT, S_IRUSR | S_IWUSR);
+    fcntl(fd_, F_NOCACHE, 1);
 #else
-    write_fd_ = open(filename.c_str(), O_RDWR | O_DIRECT | O_CREAT, S_IRUSR | S_IWUSR);
+    fd_ = open(filename.c_str(), read_only ? O_RDONLY : O_RDWR | O_DIRECT | O_CREAT,
+               S_IRUSR | S_IWUSR);
 #endif
-    return write_fd_;
+    return fd_;
   }
 };
 

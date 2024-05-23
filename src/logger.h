@@ -1,4 +1,6 @@
 #pragma once
+#ifndef NEODB_HEADER_LOGGER
+#define NEODB_HEADER_LOGGER
 
 #include "neodb/options.h"
 #include "spdlog/sinks/rotating_file_sink.h"
@@ -12,12 +14,14 @@ namespace neodb {
 #define LOG_WARNING(...) SPDLOG_WARN(__VA_ARGS__)
 #define LOG_ERROR(...) SPDLOG_ERROR(__VA_ARGS__)
 
-void InitLogger(const LoggerOptions& options);
-
 class LoggerInitializer {
  public:
-  LoggerInitializer() { InitLogger(LoggerOptions()); }
+  LoggerInitializer();
+
+  static void Initialize() { static LoggerInitializer instance; }
 };
 
-static LoggerInitializer logger_initializer;
+inline void InitLogger() { LoggerInitializer::Initialize(); }
 }  // namespace neodb
+
+#endif

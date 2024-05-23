@@ -1,10 +1,11 @@
+#include "aio_engine.h"
+
 #include <fcntl.h>
 #include <gtest/gtest.h>
 #include <unistd.h>
 
 #include <memory>
 
-#include "aio_engine.h"
 #include "utils.h"
 
 namespace neodb {
@@ -18,6 +19,7 @@ class IOEngineTest : public ::testing::Test {
   std::unique_ptr<AIOEngine> io_engine_;
 
   void SetUp() override {
+    InitLogger();
     test_file_ = CreateRandomFile(file_size_);
 #ifdef __APPLE__
     LOG(INFO, "Init Mocking AIO Engine");
@@ -26,12 +28,12 @@ class IOEngineTest : public ::testing::Test {
     LOG(INFO, "Init Posix AIO Engine");
     io_engine_ = std::make_unique<PosixAIOEngine>();
 #endif
-    write_fd_ = open(test_file_.c_str(), O_RDWR | O_CREAT | O_DIRECT, 0777);
+    write_fd_ = FileUtils::OpenDirectFile(test_file_);
     if (write_fd_ == -1) {
       LOG(ERROR, "Open writable file failed, error: {}", std::strerror(errno));
       abort();
     }
-    read_fd_ = open(test_file_.c_str(), O_RDONLY | O_DIRECT);
+    read_fd_ = FileUtils::OpenDirectFile(test_file_, true);
     if (read_fd_ == -1) {
       LOG(ERROR, "Open readonly file failed, error: {}", std::strerror(errno));
       abort();
@@ -44,7 +46,7 @@ class IOEngineTest : public ::testing::Test {
     LOG(INFO, "{} files was deleted", total);
   }
 
-  void SyncRead(int fd, char* buf, uint32_t offset, uint32_t size) {
+  static void SyncRead(int fd, char* buf, uint32_t offset, uint32_t size) {
     uint64_t ret = pread(fd, (void*)buf, size, offset);
     ASSERT_TRUE(ret > 0);
   }

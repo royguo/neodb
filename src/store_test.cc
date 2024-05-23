@@ -16,6 +16,7 @@ class StoreTest : public ::testing::Test {
   StoreOptions options_;
 
   void SetUp() override {
+    InitLogger();
     options_.device_capacity_ = 1UL << 30;
     options_.device_path_ = CreateRandomFile(options_.device_capacity_);
     options_.device_zone_capacity_ = 256UL << 20;

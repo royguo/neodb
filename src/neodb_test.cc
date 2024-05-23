@@ -12,7 +12,7 @@
 namespace neodb {
 class NeoDBTest : public ::testing::Test {
  public:
-  void SetUp() override {}
+  void SetUp() override { InitLogger(); }
 
   void TearDown() override {
     int total = FileUtils::DeleteFilesByPrefix(".", device_prefix);
@@ -88,7 +88,7 @@ TEST_F(NeoDBTest, LargeAmountPutAndGetTest) {
     }
   }
   EXPECT_GT(hits, not_found);
-  LOG(INFO, "hits: {}, not_found: {}, total: {}, hit rate: {}", hits, not_found,
-      total, hits * 100 / total);
+  LOG(INFO, "hits: {}, not_found: {}, total: {}, hit rate: {}", hits, not_found, total,
+      hits * 100 / total);
 }
 }  // namespace neodb

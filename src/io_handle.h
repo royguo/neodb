@@ -64,7 +64,7 @@ class FileIOHandle : public IOHandle {
       LOG(ERROR, "FileIOHandle init failed, filename: {}, size: {}", filename_, file_size_);
       abort();
     }
-    write_fd_ = FileUtils::OpenDirectWritableFile(filename_);
+    write_fd_ = FileUtils::OpenDirectFile(filename_);
     aio_engine_.reset(IOEngineUtils::GetInstance());
 
     if (write_fd_ == -1) {

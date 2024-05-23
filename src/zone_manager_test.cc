@@ -17,6 +17,7 @@ class ZoneManagerTest : public ::testing::Test {
   std::shared_ptr<Index> index_ = std::make_shared<Index>();
 
   void SetUp() override {
+    InitLogger();
     options_.writable_buffer_num_ = 1;
     options_.immutable_buffer_num_ = 1;
     options_.write_buffer_size_ = 1UL << 20;
