@@ -17,8 +17,9 @@ class NeoDB {
  public:
   explicit NeoDB(DBOptions options)
       : options_(std::move(options)), store_num_(options_.store_options_list_.size()) {
-    for (auto& store_options : options_.store_options_list_) {
-      LOG(INFO, "Init store, device : {}", store_options.device_path_);
+    for (int i = 0; i < options_.store_options_list_.size(); ++i) {
+      auto store_options = options_.store_options_list_[i];
+      LOG(INFO, "Init store {}, device name: {}", i, store_options.device_path_);
       stores_.emplace_back(new Store(store_options));
     }
   }

@@ -14,11 +14,17 @@
 
 #include "logger.h"
 
+#ifndef ENABLE_TRACE_POINT
+#define TRACE_POINT(name, code)
+#define PRINT_TRACE_POINT(name)
+#define PRINT_ALL_TRACE_POINTS()
+#else
+
 #define TRACE_POINT(name, code)                       \
   do {                                                \
-    auto t1 = TimeUtils::GetCurrentTimeInNs();        \
+    auto t1 = TimeUtils::GetCurrentTimeInUs();        \
     code;                                             \
-    auto t2 = TimeUtils::GetCurrentTimeInNs();        \
+    auto t2 = TimeUtils::GetCurrentTimeInUs();        \
     HistStats* stats = TracePoint::GetInstance(name); \
     stats->Append(t2 - t1);                           \
   } while (0)
@@ -28,6 +34,16 @@
     auto stats = TracePoint::GetMergedStats(name);                \
     LOG(INFO, "TRACE_POINT[{}]: {}", name, stats.ToString("ns")); \
   } while (0)
+
+#define PRINT_ALL_TRACE_POINTS()                                         \
+  do {                                                                   \
+    LOG(INFO, "----- PRINT ALL TRACE POINTS -----");                     \
+    auto merged_map = TracePoint::GetAllMergedStats();                   \
+    for (auto& merged : merged_map) {                                    \
+      LOG(INFO, "[{}]: {}", merged.first, merged.second.ToString("us")); \
+    }                                                                    \
+  } while (0)
+#endif
 
 namespace neodb {
 /*
@@ -159,8 +175,14 @@ class TracePoint {
  public:
   // Global container of all trace points.
   static std::map<std::string, HistStats>& GetSharedStatsMap() {
+    // key: combination of point name and thread id.
     static std::map<std::string, HistStats> stats_map;
     return stats_map;
+  }
+
+  static std::vector<std::string>& GetSharedPointNames() {
+    static std::vector<std::string> names;
+    return names;
   }
 
   static HistStats* GetInstance(const std::string& name) {
@@ -175,6 +197,9 @@ class TracePoint {
         return nullptr;
       }
       stats_map[key] = HistStats();
+      LOG(INFO, "Add new histogram trace point name: {}", name);
+      // remember all the names, so we can reuse them in the future.
+      GetSharedPointNames().emplace_back(name);
     }
     return &stats_map[key];
   }
@@ -191,6 +216,7 @@ class TracePoint {
     auto& stats_map = GetSharedStatsMap();
     std::vector<HistStats*> arr;
     for (auto& item : stats_map) {
+      // Find by name as prefix (the suffix is thread ids)
       if (item.first.find(name) == 0) {
         arr.push_back(&item.second);
       }
@@ -207,15 +233,24 @@ class TracePoint {
     return std::move(merged);
   }
 
-  // A trace point's name should NOT be a prefix of an existing key
+  static std::map<std::string, HistStats> GetAllMergedStats() {
+    std::map<std::string, HistStats> merged_stats;
+    auto& names = GetSharedPointNames();
+    for (const auto& name : names) {
+      merged_stats[name] = GetMergedStats(name);
+    }
+    return std::move(merged_stats);
+  }
+
+  // A trace point's name should NOT be a prefix of an existing name
   static bool IsValidTracePointKey(const std::string& name) {
-    auto& stats_map = GetSharedStatsMap();
-    for (auto& item : stats_map) {
-      if (item.first.find(name) != 0) {
+    auto& existing_names = GetSharedPointNames();
+    for (auto& existing_name : existing_names) {
+      if (existing_name.find(name) == 0 && existing_name.size() != name.size()) {
+        LOG(INFO, "new name: {}, existing name: {}", name, existing_name);
         return false;
       }
     }
-
     return true;
   }
 };

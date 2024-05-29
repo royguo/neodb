@@ -6,6 +6,7 @@
 
 #include "codec.h"
 #include "gc.h"
+#include "neodb/histogram.h"
 #include "utils.h"
 
 namespace neodb {
@@ -50,12 +51,14 @@ Status ZoneManager::Append(const std::string& key, const std::shared_ptr<IOBuf>&
 // Try to pick a immutable_ write buffer and encode, flush it to disk.
 void ZoneManager::FlushImmutableBuffers() {
   if (data_zone_ == nullptr || data_zone_->state_ == ZoneState::FULL) {
-    auto s = SwitchDataZone();
+    Status s = Status::OK();
+    TRACE_POINT("SwitchDataZone", { s = SwitchDataZone(); });
     if (!s.ok()) {
       LOG(ERROR, "No available data zone for writing, retry later...");
       return;
     }
-  }
+  };
+
   std::unique_ptr<WriteBuffer> immutable;
   {
     std::unique_lock<std::mutex> lk(immutable_buffer_mtx_);
@@ -93,7 +96,7 @@ void ZoneManager::FlushImmutableBuffers() {
       // Before switch to new zone, we should flush the current buffer because the related LBA were
       // already calculated.
       FlushAndResetIOBuffer(encoded_buf);
-      SwitchDataZone();
+      TRACE_POINT("SwitchDataZone", { SwitchDataZone(); });
       data_zone_key_buffers_.clear();
       assert(data_zone_->GetUsedBytes() % IO_PAGE_SIZE == 0);
     }
@@ -208,7 +211,8 @@ Status ZoneManager::SwitchDataZone() {
   // Finish the current data zone before open next one.
   if (data_zone_ != nullptr) {
     LOG(INFO, "Finish the current data zone, zone id: {}", data_zone_->id_);
-    auto s = FinishCurrentDataZone();
+    Status s = Status::OK();
+    TRACE_POINT("FinishCurrentDataZone", { s = FinishCurrentDataZone(); });
     if (!s.ok()) {
       return s;
     }
@@ -223,6 +227,7 @@ Status ZoneManager::SwitchDataZone() {
   data_zone_ = empty_zones_.back();
   empty_zones_.pop_back();
   data_zone_->state_ = ZoneState::OPEN;
+  data_zone_->open_time_us_ = TimeUtils::GetCurrentTimeInUs();
   LOG(INFO, "Opened a new data zone: {}", data_zone_->id_);
   return Status::OK();
 }
@@ -295,8 +300,15 @@ Status ZoneManager::FinishCurrentDataZone() {
 
   // update zone state and clear zone key buffer.
   data_zone_->state_ = ZoneState::FULL;
-  LOG(INFO, "zone finished success, id : {}, reminding immutable_ buffer: {}, writable buffer: {}",
-      data_zone_->id_, immutable_buffers_.size(), writable_buffers_.size());
+  data_zone_->close_time_us_ = TimeUtils::GetCurrentTimeInUs();
+
+  uint64_t duration = data_zone_->close_time_us_ - data_zone_->open_time_us_;
+  double write_speed =
+      (double(data_zone_->GetUsedBytes()) / 1024.0 / 1024) / (double(duration) / 1000.0 / 1000);
+  LOG(INFO,
+      "Zone finished success, id : {}, reminding immutable_ buffer: {}, writable buffer: {}, zone "
+      "active duration: {} us, write speed: {:.2f} MiB/s",
+      data_zone_->id_, immutable_buffers_.size(), writable_buffers_.size(), duration, write_speed);
   return Status::OK();
 }
 

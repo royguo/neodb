@@ -7,11 +7,16 @@ SET(CMAKE_WARN_DEPRECATED OFF CACHE BOOL "" FORCE)
 # options
 OPTION(WITH_ASAN "build with asan" OFF)
 OPTION(WITH_TEST "build test cases" ON)
+OPTION(WITH_TRACE_POINT "build with debug trace points" ON)
 
 ADD_SUBDIRECTORY(third)
 
 IF (WITH_ASAN)
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
+ENDIF ()
+
+IF (WITH_TRACE_POINT)
+    ADD_DEFINITIONS(-DENABLE_TRACE_POINT)
 ENDIF ()
 
 # header files
@@ -26,7 +31,7 @@ LIST(REMOVE_ITEM SOURCE_FILES ${TEST_FILES})
 # build neodb library
 ADD_LIBRARY(neodb STATIC ${SOURCE_FILES})
 IF (APPLE)
-  MESSAGE("MacOS: Compile without librt")
+    MESSAGE("MacOS: Compile without librt")
     TARGET_LINK_LIBRARIES(neodb spdlog gflags)
 ELSE ()
     MESSAGE("Linux: Compile with librt")
