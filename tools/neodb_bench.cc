@@ -139,11 +139,11 @@ class Benchmark {
     for (auto& worker : workers_) {
       worker.join();
     }
-    db_ = nullptr;
-
     auto end = TimeUtils::GetCurrentTimeInMs();
-    uint64_t throughput_mb = (target_write_bytes / ((end - start) / 1000)) >> 20;
+    // kb per milliseconds
+    uint64_t throughput = ((target_write_bytes / (end - start)) * 1000) >> 20;
 
+    db_ = nullptr;
     LOG(INFO, "Finish Benchmarking Insertion");
 
     HistStats stats;
@@ -153,8 +153,8 @@ class Benchmark {
 
     std::string line = "--------------------------------------------------------";
     LOG(INFO, line);
-    LOG(INFO, "Time cost: {} ms, total bytes written: {}, throughput: {} MB/s", end - start,
-        target_write_bytes, throughput_mb);
+    LOG(INFO, "Time cost: {} ms, total written: {} bytes, throughput: {} MB/s", end - start,
+        target_write_bytes, throughput);
     LOG(INFO, line);
     LOG(INFO, "{}", stats.ToString(" us"));
     LOG(INFO, line);

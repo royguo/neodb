@@ -8,6 +8,7 @@
 #include "neodb/options.h"
 #include "neodb/status.h"
 #include "store.h"
+#include "trace_points.h"
 
 #define NEODB_VERSION "1.0.0"
 

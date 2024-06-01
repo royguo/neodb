@@ -6,7 +6,7 @@
 
 #include "codec.h"
 #include "gc.h"
-#include "neodb/histogram.h"
+#include "trace_points.h"
 #include "utils.h"
 
 namespace neodb {
@@ -48,11 +48,11 @@ Status ZoneManager::Append(const std::string& key, const std::shared_ptr<IOBuf>&
   return Status::OK();
 }
 
-// Try to pick a immutable_ write buffer and encode, flush it to disk.
+// Try to pick a immutable_ write buffer and encode, flush it to disk. This function is called
+// before flush worker was stopped.
 void ZoneManager::FlushImmutableBuffers() {
   if (data_zone_ == nullptr || data_zone_->state_ == ZoneState::FULL) {
-    Status s = Status::OK();
-    TRACE_POINT("SwitchDataZone", { s = SwitchDataZone(); });
+    Status s = SwitchDataZone();
     if (!s.ok()) {
       LOG(ERROR, "No available data zone for writing, retry later...");
       return;
@@ -208,9 +208,11 @@ Status ZoneManager::ReadSingleItem(uint64_t offset, std::string* key,
 }
 
 Status ZoneManager::SwitchDataZone() {
+  auto t1 = TimeUtils::GetCurrentTimeInUs();
   // Finish the current data zone before open next one.
   if (data_zone_ != nullptr) {
-    LOG(INFO, "Finish the current data zone, zone id: {}", data_zone_->id_);
+    LOG(INFO, "Need to finish the current data zone before switch zone, current zone id: {}",
+        data_zone_->id_);
     Status s = Status::OK();
     TRACE_POINT("FinishCurrentDataZone", { s = FinishCurrentDataZone(); });
     if (!s.ok()) {
@@ -228,7 +230,8 @@ Status ZoneManager::SwitchDataZone() {
   empty_zones_.pop_back();
   data_zone_->state_ = ZoneState::OPEN;
   data_zone_->open_time_us_ = TimeUtils::GetCurrentTimeInUs();
-  LOG(INFO, "Opened a new data zone: {}", data_zone_->id_);
+  auto t2 = TimeUtils::GetCurrentTimeInUs();
+  LOG(INFO, "Switch to a new data zone: {}, time cost: {}us", data_zone_->id_, (t2 - t1));
   return Status::OK();
 }
 
@@ -269,11 +272,12 @@ Status ZoneManager::FlushAndResetIOBuffer(const std::shared_ptr<IOBuf>& buf) {
 }
 
 Status ZoneManager::FinishCurrentDataZone() {
+  auto t1 = TimeUtils::GetCurrentTimeInUs();
   if (data_zone_ == nullptr || data_zone_key_buffers_.empty()) {
     return Status::IOError("No available data zone, finish zone skipped.");
   }
 
-  LOG(INFO, "Finishing current zone, id : {}", data_zone_->id_);
+  LOG(INFO, "Start finishing current zone, id : {}", data_zone_->id_);
   uint64_t meta_offset = data_zone_->wp_;
   std::shared_ptr<IOBuf> zone_meta;
   uint32_t real_size = Codec::GenerateDataZoneMeta(data_zone_key_buffers_, zone_meta);
@@ -305,10 +309,15 @@ Status ZoneManager::FinishCurrentDataZone() {
   uint64_t duration = data_zone_->close_time_us_ - data_zone_->open_time_us_;
   double write_speed =
       (double(data_zone_->GetUsedBytes()) / 1024.0 / 1024) / (double(duration) / 1000.0 / 1000);
+  auto t2 = TimeUtils::GetCurrentTimeInUs();
   LOG(INFO,
-      "Zone finished success, id : {}, reminding immutable_ buffer: {}, writable buffer: {}, zone "
-      "active duration: {} us, write speed: {:.2f} MiB/s",
-      data_zone_->id_, immutable_buffers_.size(), writable_buffers_.size(), duration, write_speed);
+      "Zone finished success, id : {}, "
+      "reminding immutable_ buffer: {}, "
+      "writable buffer: {}, zone active duration: {} us, "
+      "write speed: {:.2f} MiB/s, "
+      "finish zone time cost: {}us",
+      data_zone_->id_, immutable_buffers_.size(), writable_buffers_.size(), duration, write_speed,
+      (t2 - t1));
   return Status::OK();
 }
 

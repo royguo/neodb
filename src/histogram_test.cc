@@ -7,6 +7,7 @@
 
 #include "gtest/gtest.h"
 #include "io_handle.h"
+#include "trace_points.h"
 #include "utils.h"
 
 namespace neodb {

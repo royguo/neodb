@@ -10,17 +10,11 @@ class Status {
  public:
   static Status OK(const std::string& msg = "") { return {Code::kOK, msg}; }
 
-  static Status NotFound(const std::string& msg = "") {
-    return {Code::kNotFound, msg};
-  }
+  static Status NotFound(const std::string& msg = "") { return {Code::kNotFound, msg}; }
 
-  static Status Busy(const std::string& msg = "") {
-    return {Code::kIOBusy, msg};
-  }
+  static Status Busy(const std::string& msg = "") { return {Code::kIOBusy, msg}; }
 
-  static Status IOError(const std::string& msg = "") {
-    return {Code::kIOError, msg};
-  }
+  static Status IOError(const std::string& msg = "") { return {Code::kIOError, msg}; }
 
   static Status StatusError(const std::string& msg = "status not valid") {
     return {Code::kIOError, msg};
@@ -28,7 +22,7 @@ class Status {
 
  public:
   explicit Status(Code code) : code_(code) {}
-  Status(Code code, std::string  msg) : code_(code), msg_(std::move(msg)) {}
+  Status(Code code, std::string msg) : code_(code), msg_(std::move(msg)) {}
 
   Code code() { return code_; }
 
@@ -41,4 +35,7 @@ class Status {
 
   std::string msg_;
 };
+
+template <typename T>
+class StatusOr : public Status {};
 }  // namespace neodb
