@@ -42,7 +42,6 @@ uint32_t Codec::GenerateDataZoneMeta(const Codec::DataZoneKeyBuffer& buffer,
     ptr += (10 + item.first.size());
     key_cnt++;
   }
-  LOG(INFO, "Encode data zone meta, key cnt: {}", key_cnt);
   meta->IncreaseSize(capacity);
   // return the real size
   return ptr - meta->Buffer();
@@ -77,7 +76,9 @@ void Codec::EncodeDataZoneFooter(const Codec::DataZoneKeyBuffer& buffer,
   assert(buf->Capacity() % IO_PAGE_SIZE == 0);
   assert(buf->Capacity() >= IO_PAGE_SIZE);
   uint32_t key_cnt = buffer.size();
-  buf->AppendZeros(buf->Capacity() - 16);
+  //  buf->AppendZeros(buf->Capacity() - 16);
+  // Skip padding 0 zeros
+  buf->IncreaseSize(buf->Capacity() - 16);
   buf->Append((char*)&key_cnt, 4);
   buf->Append((char*)&meta_bytes, 4);
   buf->Append((char*)&meta_offset, 8);

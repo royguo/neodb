@@ -1,3 +1,6 @@
+/**
+ * TracePoint util is used for performance debugging, we should disable it in production.
+ */
 #pragma once
 #include <unordered_map>
 

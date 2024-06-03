@@ -17,8 +17,8 @@
 #include "logger.h"
 #include "neodb/io_buf.h"
 #include "neodb/status.h"
-#include "zone.h"
 #include "utils.h"
+#include "zone.h"
 
 namespace neodb {
 class IOHandle {
@@ -27,8 +27,7 @@ class IOHandle {
 
   virtual Status Write(uint64_t offset, std::shared_ptr<IOBuf> data) = 0;
 
-  virtual Status AsyncWrite(uint64_t offset,
-                            const std::shared_ptr<IOBuf>& data,
+  virtual Status AsyncWrite(uint64_t offset, const std::shared_ptr<IOBuf>& data,
                             const std::function<void(uint64_t)>& cb) = 0;
 
   // Read certain amount of data and append to the data buffer.
@@ -41,9 +40,13 @@ class IOHandle {
   // Append data to the target zone.
   virtual Status Append(const std::shared_ptr<Zone>& zone, std::shared_ptr<IOBuf> data) = 0;
 
-  virtual Status AsyncAppend(const std::shared_ptr<Zone>& zone,
-                             std::shared_ptr<IOBuf> data,
-                             const std::function<void(uint64_t)>& cb) = 0;
+  // Append or skip some padding zeros.
+  // For Conventional SSD, we can simply increase the write pointer but for ZNS SSD we need to
+  // append real 0s.
+  virtual Status AppendZeros(const std::shared_ptr<Zone>& zone, uint32_t size) = 0;
+
+//  virtual Status AsyncAppend(const std::shared_ptr<Zone>& zone, std::shared_ptr<IOBuf> data,
+//                             const std::function<void(uint64_t)>& cb) = 0;
 
   virtual std::vector<std::shared_ptr<Zone>> GetDeviceZones() = 0;
 
@@ -87,20 +90,19 @@ class FileIOHandle : public IOHandle {
 
   Status Write(uint64_t offset, std::shared_ptr<IOBuf> data) override;
 
-  Status AsyncWrite(uint64_t offset,
-                    const std::shared_ptr<IOBuf>& data,
+  Status AsyncWrite(uint64_t offset, const std::shared_ptr<IOBuf>& data,
                     const std::function<void(uint64_t)>& cb) override;
 
   Status ReadAppend(uint64_t offset, uint32_t size, std::shared_ptr<IOBuf> data) override;
 
   Status Read(uint64_t offset, std::shared_ptr<IOBuf> data) override;
 
+  Status AppendZeros(const std::shared_ptr<Zone>& zone, uint32_t size) override;
+
   Status Append(const std::shared_ptr<Zone>& zone, std::shared_ptr<IOBuf> data) override;
 
-
-  Status AsyncAppend(const std::shared_ptr<Zone>& zone,
-                     std::shared_ptr<IOBuf> data,
-                     const std::function<void(uint64_t)>& cb) override;
+//  Status AsyncAppend(const std::shared_ptr<Zone>& zone, std::shared_ptr<IOBuf> data,
+//                     const std::function<void(uint64_t)>& cb) override;
 
   std::vector<std::shared_ptr<Zone>> GetDeviceZones() override;
 

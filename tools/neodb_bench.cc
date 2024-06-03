@@ -142,10 +142,9 @@ class Benchmark {
     auto end = TimeUtils::GetCurrentTimeInMs();
     // kb per milliseconds
     uint64_t throughput = ((target_write_bytes / (end - start)) * 1000) >> 20;
+    LOG(INFO, "======================== Finish Benchmarking Insertion =================");
 
     db_ = nullptr;
-    LOG(INFO, "Finish Benchmarking Insertion");
-
     HistStats stats;
     for (auto& stat : write_stats_) {
       stats.Merge(stat);

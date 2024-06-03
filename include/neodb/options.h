@@ -28,7 +28,7 @@ struct StoreOptions {
 
   uint64_t device_capacity_ = 10UL << 30;
 
-  uint64_t device_zone_capacity_ = 20UL << 20;
+  uint64_t device_zone_capacity_ = 256UL << 20;
 
   // Maximum capacity of each write buffer.
   // Total system memory usage:

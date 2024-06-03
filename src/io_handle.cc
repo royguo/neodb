@@ -4,9 +4,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "neodb/io_buf.h"
-
 #include "logger.h"
+#include "neodb/io_buf.h"
 #include "utils.h"
 
 namespace neodb {
@@ -21,8 +20,7 @@ Status FileIOHandle::Write(uint64_t offset, std::shared_ptr<IOBuf> data) {
   return Status::OK();
 }
 
-Status FileIOHandle::AsyncWrite(uint64_t offset,
-                                const std::shared_ptr<IOBuf>& data,
+Status FileIOHandle::AsyncWrite(uint64_t offset, const std::shared_ptr<IOBuf>& data,
                                 const std::function<void(uint64_t)>& cb) {
   // If the engine's io depth is full.
   while (aio_engine_->Busy()) {
@@ -30,7 +28,7 @@ Status FileIOHandle::AsyncWrite(uint64_t offset,
   }
 
   uint32_t buf_sz = NumberUtils::AlignTo(data->Size(), IO_PAGE_SIZE);
-  auto s = aio_engine_->AsyncWrite(write_fd_,offset, data->Buffer(), buf_sz, cb);
+  auto s = aio_engine_->AsyncWrite(write_fd_, offset, data->Buffer(), buf_sz, cb);
 
   if (!s.ok()) {
     LOG(ERROR, "Failed to write data, code: {}, msg: {} ", s.code(), s.msg());
@@ -69,16 +67,19 @@ Status FileIOHandle::Append(const std::shared_ptr<Zone>& zone, std::shared_ptr<I
   return s;
 }
 
-Status FileIOHandle::AsyncAppend(const std::shared_ptr<Zone>& zone,
-                                 std::shared_ptr<IOBuf> data,
-                                 const std::function<void(uint64_t)>& cb) {
-  auto s = AsyncWrite(zone->wp_, data, [&](uint64_t offset) {
-    assert(zone->wp_ == offset);
-    zone->wp_ += data->Size();
-  });
-
-  return s;
+Status FileIOHandle::AppendZeros(const std::shared_ptr<Zone>& zone, uint32_t size) {
+  zone->wp_ += size;
+  return Status::OK();
 }
+
+//Status FileIOHandle::AsyncAppend(const std::shared_ptr<Zone>& zone, std::shared_ptr<IOBuf> data,
+//                                 const std::function<void(uint64_t)>& cb) {
+//  auto s = AsyncWrite(zone->wp_, data, [&](uint64_t offset) {
+//    assert(zone->wp_ == offset);
+//    zone->wp_ += data->Size();
+//  });
+//  return s;
+//}
 
 std::vector<std::shared_ptr<Zone>> FileIOHandle::GetDeviceZones() {
   std::vector<std::shared_ptr<Zone>> zones;

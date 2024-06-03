@@ -24,7 +24,7 @@ Status ZoneManager::Append(const std::string& key, const std::shared_ptr<IOBuf>&
   }
 
   // upsert index item
-  index_->Put(key, value);
+  TRACE_POINT("IndexPut", { index_->Put(key, value); });
 
   // TODO(Roy Guo) Move to background thread
   // If the WriteBuffer exceeds its capacity, we should create a new empty
@@ -33,10 +33,13 @@ Status ZoneManager::Append(const std::string& key, const std::shared_ptr<IOBuf>&
     write_buffer->MarkImmutable();
     {
       // If the immutable_ buffer exceeds limit, we should wait.
+      auto t1 = TimeUtils::GetCurrentTimeInUs();
       std::unique_lock<std::mutex> immutable_lk(immutable_buffer_mtx_);
       immutable_buffer_cv_.wait(immutable_lk, [&]() {
         return immutable_buffers_.size() < options_.immutable_buffer_num_;
       });
+      auto t2 = TimeUtils::GetCurrentTimeInUs();
+      LOG(INFO, "Acquire new write buffer's lock, time: {}us", t2 - t1);
       immutable_buffers_.emplace_back(std::move(writable_buffers_[idx]));
       writable_buffers_[idx] = std::make_unique<WriteBuffer>(options_.write_buffer_size_);
       LOG(DEBUG,
@@ -64,7 +67,6 @@ void ZoneManager::FlushImmutableBuffers() {
     std::unique_lock<std::mutex> lk(immutable_buffer_mtx_);
     immutable_buffer_cv_.wait_for(lk, std::chrono::seconds(1),
                                   [&]() { return !immutable_buffers_.empty(); });
-
     if (immutable_buffers_.empty()) {
       return;
     }
@@ -107,9 +109,10 @@ void ZoneManager::FlushImmutableBuffers() {
     uint64_t lba =
         TryFlushSingleItem(encoded_buf, item.first, item.second, i == (items->size() - 1));
     lba_vec.push_back(lba);
-    // Buffer the flushed key & lba and flush to the footer before zone close.
+    //  All keys & LBA of current data zone
     data_zone_key_buffers_.emplace_back(item.first, lba);
-    // Buffer current IO buffer's related keys and LBA (not current data zone)
+    // Keys & LBA of current IO Buffer (not current data zone), because current IO Buffer probally
+    // not fully flushed at once.
     encoded_io_key_buf_.emplace_back(item.first, lba);
   }
 }
@@ -156,10 +159,10 @@ uint64_t ZoneManager::TryFlushSingleItem(const std::shared_ptr<IOBuf>& buf, cons
     if (cur_value_ptr - value_ptr == value_sz && buf->AvailableSize() > 0) {
       break;
     }
-    // if there's still more value data, which means the buffer should be full
-    // now, so we should process current buffer.
-    // If we are lucy enough that both value data and target buffer is consumed,
-    // we should reset the buffer.
+    // if there's still more value data, but the IO Buffer is already full, we should flush IO
+    // Buffer Now and consume the rest of the value data in next IO Buffer.
+    // But if we are lucy enough that both value data and target buffer is consumed, we should reset
+    // the buffer.
     if (buf->AvailableSize() == 0) {
       LOG(DEBUG, "Buffer is full, flushed, io size: {}, lba = {}", buf->Capacity(),
           data_zone_->wp_);
@@ -211,8 +214,7 @@ Status ZoneManager::SwitchDataZone() {
   auto t1 = TimeUtils::GetCurrentTimeInUs();
   // Finish the current data zone before open next one.
   if (data_zone_ != nullptr) {
-    LOG(INFO, "Need to finish the current data zone before switch zone, current zone id: {}",
-        data_zone_->id_);
+    LOG(INFO, "Zone[{}] need to be finished before switching new data zone.", data_zone_->id_);
     Status s = Status::OK();
     TRACE_POINT("FinishCurrentDataZone", { s = FinishCurrentDataZone(); });
     if (!s.ok()) {
@@ -231,7 +233,7 @@ Status ZoneManager::SwitchDataZone() {
   data_zone_->state_ = ZoneState::OPEN;
   data_zone_->open_time_us_ = TimeUtils::GetCurrentTimeInUs();
   auto t2 = TimeUtils::GetCurrentTimeInUs();
-  LOG(INFO, "Switch to a new data zone: {}, time cost: {}us", data_zone_->id_, (t2 - t1));
+  LOG(INFO, "Switched to a new data zone: {}, time cost: {}us", data_zone_->id_, (t2 - t1));
   return Status::OK();
 }
 
@@ -277,14 +279,18 @@ Status ZoneManager::FinishCurrentDataZone() {
     return Status::IOError("No available data zone, finish zone skipped.");
   }
 
-  LOG(INFO, "Start finishing current zone, id : {}", data_zone_->id_);
   uint64_t meta_offset = data_zone_->wp_;
   std::shared_ptr<IOBuf> zone_meta;
+  auto d = TimeUtils::GetCurrentTimeInUs();
   uint32_t real_size = Codec::GenerateDataZoneMeta(data_zone_key_buffers_, zone_meta);
 
   assert(data_zone_->wp_ % IO_PAGE_SIZE == 0);
   assert(zone_meta->Size() > 0);
+  auto e = TimeUtils::GetCurrentTimeInUs();
   auto s = io_handle_->Append(data_zone_, zone_meta);
+  auto f = TimeUtils::GetCurrentTimeInUs();
+  LOG(INFO, "Zone[{}] finishing, metadata encoding: {}us, flush: {}us, encoded size: {}",
+      data_zone_->id_, e - d, f - e, zone_meta->Size());
   if (!s.ok()) {
     LOG(ERROR, "finish zone failed during flush the zone meta: {}", std::strerror(errno));
     return s;
@@ -292,8 +298,16 @@ Status ZoneManager::FinishCurrentDataZone() {
 
   // This buffer includes pre-footer padding.
   auto footer = std::make_shared<IOBuf>(data_zone_->GetAvailableBytes());
+  auto a = TimeUtils::GetCurrentTimeInUs();
+  // Encoding data zone's footer (last page) and append zeros to the zone first.
   Codec::EncodeDataZoneFooter(data_zone_key_buffers_, footer, meta_offset, real_size);
+  io_handle_->AppendZeros(data_zone_, footer->Capacity() - IO_PAGE_SIZE);
+  footer->Shrink(footer->Capacity() - IO_PAGE_SIZE, IO_PAGE_SIZE);
+  auto b = TimeUtils::GetCurrentTimeInUs();
   s = io_handle_->Append(data_zone_, footer);
+  auto c = TimeUtils::GetCurrentTimeInUs();
+  LOG(INFO, "Zone[{}] finishing, footer encoding: {}us, flush: {}us, encoded size: {}",
+      data_zone_->id_, (b - a), (c - b), footer->Size());
   if (!s.ok()) {
     LOG(ERROR,
         "finish zone failed during flush the zone footer, zone id: {}, "
@@ -311,11 +325,11 @@ Status ZoneManager::FinishCurrentDataZone() {
       (double(data_zone_->GetUsedBytes()) / 1024.0 / 1024) / (double(duration) / 1000.0 / 1000);
   auto t2 = TimeUtils::GetCurrentTimeInUs();
   LOG(INFO,
-      "Zone finished success, id : {}, "
-      "reminding immutable_ buffer: {}, "
-      "writable buffer: {}, zone active duration: {} us, "
-      "write speed: {:.2f} MiB/s, "
-      "finish zone time cost: {}us",
+      "Zone[{}] finished, immutable_ buffer: {}, "
+      "writable buffer: {}, "
+      "active duration: {} us, "
+      "speed: {:.2f} MiB/s, "
+      "time cost: {}us",
       data_zone_->id_, immutable_buffers_.size(), writable_buffers_.size(), duration, write_speed,
       (t2 - t1));
   return Status::OK();
